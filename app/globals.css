@@ -645,6 +645,9 @@ p {
   display: block;
   margin-bottom: 20px;
 }
+.profile-ages {
+  margin-top: 12px;
+}
 label.profile-h {
   display: block;
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowClockwise, ArrowLeft, Camera, IdentificationCard, PaperPlaneRight, Stop, Trash } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
 import StatusDot from './StatusDot';
+import { adultBlocker } from '@/lib/age';
 import { fileToAvatar } from '@/lib/image';
 import { buildPrompt, streamChat } from '@/lib/ollama';
 import type { Character, Message, OllamaStatus } from '@/lib/types';
@@ -102,7 +103,7 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
   };
 
   const lastFailed = char.messages[char.messages.length - 1]?.failed;
-  const underage = [char.age, char.userAge].some((a) => Number(a?.match(/\d+/)?.[0] ?? 18) < 18);
+  const blocker = adultBlocker(char);
 
   return (
     <div className="chat" data-profile={profileOpen ? 'open' : undefined}>
@@ -180,17 +181,32 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
           <label className="toggle">
             <input
               type="checkbox"
-              checked={!!char.adult}
-              disabled={underage}
+              checked={!!char.adult && !blocker}
+              disabled={!!blocker}
               onChange={(e) => onUpdate((c) => ({ ...c, adult: e.target.checked }))}
             />
             <span>
               <span className="toggle-title">โหมดหยาบ 18+</span>
-              <span className="help">
-                {underage ? 'ตัวละครหรือคุณอายุต่ำกว่า 18 ปี ใช้โหมดนี้ไม่ได้' : 'ตัวละครจะพูด กู/มึง ด่าและสบถใส่คุณ มีผลกับข้อความถัดไป (เปิด/ปิดที่ปุ่ม "หยาบ" บนแถบหัวได้ด้วย)'}
+              <span className={blocker ? 'help warn' : 'help'}>
+                {blocker ?? 'ตัวละครจะพูดหยาบใส่คุณตามนิสัย มีผลกับข้อความถัดไป (เปิด/ปิดที่ปุ่ม "หยาบ" บนแถบหัวได้ด้วย)'}
               </span>
             </span>
           </label>
+          <div className="grid-2 profile-ages">
+            <label className="field">
+              <span className="field-label">อายุตัวละคร</span>
+              <input value={char.age} onChange={(e) => onUpdate((c) => ({ ...c, age: e.target.value }))} placeholder="เช่น 20 ปี" />
+            </label>
+            <label className="field">
+              <span className="field-label">อายุของคุณ</span>
+              <input
+                id="player-age"
+                value={char.userAge ?? ''}
+                onChange={(e) => onUpdate((c) => ({ ...c, userAge: e.target.value }))}
+                placeholder="เช่น 21 ปี"
+              />
+            </label>
+          </div>
         </div>
       </aside>
       <button className="profile-scrim" aria-label="ปิดข้อมูลตัวละคร" onClick={() => setProfileOpen(false)} />
@@ -225,13 +241,17 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
             <StatusDot status={status} />
             <button
               className="rude-toggle"
-              aria-pressed={!!char.adult}
-              disabled={underage}
-              onClick={() => onUpdate((c) => ({ ...c, adult: !c.adult }))}
-              title={underage ? 'ตัวละครหรือคุณอายุต่ำกว่า 18 ปี ใช้โหมดหยาบไม่ได้' : 'ให้ตัวละครพูดหยาบ ใช้ กู/มึง และคำสบถกับคุณ (18+)'}
+              aria-pressed={!!char.adult && !blocker}
+              onClick={() => {
+                if (!blocker) return onUpdate((c) => ({ ...c, adult: !c.adult }));
+                // Explain why instead of silently refusing: open the profile at the age fields.
+                setProfileOpen(true);
+                requestAnimationFrame(() => document.getElementById('player-age')?.scrollIntoView({ block: 'center' }));
+              }}
+              title={blocker ?? 'ให้ตัวละครพูดหยาบใส่คุณตามนิสัย (18+)'}
             >
               <span className="rude-track" aria-hidden />
-              หยาบ {char.adult ? 'เปิด' : 'ปิด'}
+              หยาบ {char.adult && !blocker ? 'เปิด' : 'ปิด'}
             </button>
             {confirmClear ? (
               <span className="confirm">

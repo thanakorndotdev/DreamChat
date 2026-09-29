@@ -1,3 +1,4 @@
+import { adultBlocker } from './age';
 import { lexiconText } from './lexicon';
 import type { Character, Message } from './types';
 
@@ -21,6 +22,7 @@ const RUDE_ON_NOTE = '\n\n(OOC — do not mention this note: rude mode is ON. Re
 const RUDE_OFF_NOTE = '\n\n(OOC — do not mention this note: rude mode is OFF. Reply in character with no profanity; do not use กู/มึง.)';
 
 export function buildPrompt(char: Character, history: Message[]): ChatMessage[] {
+  const rude = !!char.adult && !adultBlocker(char);
   const system = `
 You are an expert creative roleplay partner. You are roleplaying as "${char.name}".
 Stay 100% in character at all times.
@@ -46,7 +48,7 @@ ROLEPLAY RULES:
 2. Put actions, movements, facial expressions, and inner feelings in asterisks *like this*.
 3. Read the conversation history carefully. Directly acknowledge what ${char.userName || 'the user'} just said or asked.
 4. Advance the scene naturally. Keep dialogue lively, emotional, and authentic.
-${char.adult ? ADULT_RULES(char.userName || 'the user') : SAFE_RULES}
+${rude ? ADULT_RULES(char.userName || 'the user') : SAFE_RULES}
 `.trim();
 
   const messages: ChatMessage[] = [
@@ -61,7 +63,7 @@ ${char.adult ? ADULT_RULES(char.userName || 'the user') : SAFE_RULES}
   // A short note on the newest user turn makes the switch take effect immediately.
   const last = messages[messages.length - 1];
   if (last.role === 'user') {
-    last.content += char.adult ? RUDE_ON_NOTE : RUDE_OFF_NOTE;
+    last.content += rude ? RUDE_ON_NOTE : RUDE_OFF_NOTE;
   }
   return messages;
 }

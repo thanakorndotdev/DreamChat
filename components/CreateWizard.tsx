@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, MagicWand, Shuffle, Sparkle, Stop, UploadSimple } from '@phosphor-icons/react';
 import Modal from './Modal';
 import { BOT_PRESETS, DEFAULT_AVATAR, IMAGE_THEMES, USER_PRESETS, pickNew } from '@/lib/presets';
+import { ageNumber } from '@/lib/age';
 import { fileToAvatar } from '@/lib/image';
 import { generateCharacter } from '@/lib/ollama';
 import type { Character } from '@/lib/types';
@@ -25,12 +26,6 @@ const EMPTY = {
   userRole: 'เพื่อนสนิทสมัยเด็กที่รู้ความลับของกันและกัน',
   adult: false,
 };
-
-/** First number in a free-text age like "20 ปี"; null when there is none. */
-function ageNumber(age: string) {
-  const m = age.match(/\d+/);
-  return m ? Number(m[0]) : null;
-}
 
 const STYLE_TAGS =
   'korean manhwa webtoon style, romance novel cover art, semi-realistic digital painting, delicate porcelain skin, soft glossy lips, sparkling eyes, warm soft ambient lighting, highly detailed, trending on artstation';
