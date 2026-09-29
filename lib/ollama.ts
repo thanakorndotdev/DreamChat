@@ -5,11 +5,16 @@ type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 const SAFE_RULES = `5. Keep the language clean: no profanity, slurs, or sexual content. Stay in character while doing so.`;
 
-const ADULT_RULES = () => `5. ADULT MODE (18+): This is a roleplay between adults; every character is 18 or older.
-   Crude, rude, and vulgar Thai is allowed when it fits the character's personality and the mood — swear, curse, and use rough pronouns naturally like a real person would, not in every sentence.
+const ADULT_RULES = (user: string) => `5. RUDE MODE (18+): This is a roleplay between adults; every character is 18 or older.
+   ${user} has turned rude mode ON and wants you to talk dirty-mouthed to them. Speak crude, vulgar Thai directly to ${user}:
+   call yourself "กู" and ${user} "มึง" (or ไอ้/อี + name), swear and curse at them, tease and insult them bluntly — do not soften, censor, or apologize for it.
+   Keep the character's personality underneath (a caring character still cares, just with a foul mouth).
    Mature and suggestive themes are allowed. Never involve minors.
    Vocabulary to draw from (use naturally, mix with your own):
 ${lexiconText()}`;
+
+const RUDE_ON_NOTE = '\n\n(OOC — do not mention this note: rude mode is ON. Reply in character using กู/มึง and swear words.)';
+const RUDE_OFF_NOTE = '\n\n(OOC — do not mention this note: rude mode is OFF. Reply in character with no profanity; do not use กู/มึง.)';
 
 export function buildPrompt(char: Character, history: Message[]): ChatMessage[] {
   const system = `
@@ -37,16 +42,24 @@ ROLEPLAY RULES:
 2. Put actions, movements, facial expressions, and inner feelings in asterisks *like this*.
 3. Read the conversation history carefully. Directly acknowledge what ${char.userName || 'the user'} just said or asked.
 4. Advance the scene naturally. Keep dialogue lively, emotional, and authentic.
-${char.adult ? ADULT_RULES() : SAFE_RULES}
+${char.adult ? ADULT_RULES(char.userName || 'the user') : SAFE_RULES}
 `.trim();
 
-  return [
+  const messages: ChatMessage[] = [
     { role: 'system', content: system },
     ...history
       .filter((m) => !m.failed)
       .slice(-10)
       .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }) as ChatMessage),
   ];
+
+  // Models copy the tone of recent replies, so after toggling rude mode the history drags it back.
+  // A short note on the newest user turn makes the switch take effect immediately.
+  const last = messages[messages.length - 1];
+  if (last.role === 'user') {
+    last.content += char.adult ? RUDE_ON_NOTE : RUDE_OFF_NOTE;
+  }
+  return messages;
 }
 
 /** Streams a reply through the Next.js proxy; calls onText with the text so far. */

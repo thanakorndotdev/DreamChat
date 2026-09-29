@@ -775,6 +775,50 @@ label.profile-h {
   gap: 12px;
 }
 
+.rude-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--seam);
+  font-size: 13px;
+  color: var(--dusk);
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.rude-track {
+  position: relative;
+  width: 26px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--seam);
+  transition: background-color 0.15s;
+}
+.rude-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--paper);
+  transition: transform 0.15s;
+}
+.rude-toggle[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.rude-toggle[aria-pressed='true'] .rude-track {
+  background: var(--danger);
+}
+.rude-toggle[aria-pressed='true'] .rude-track::after {
+  transform: translateX(10px);
+}
+
 .only-mobile {
   display: none;
   color: var(--dusk);

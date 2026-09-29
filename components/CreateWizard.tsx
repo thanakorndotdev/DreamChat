@@ -284,8 +284,8 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
               }}
             />
             <span>
-              <span className="toggle-title">โหมด 18+</span>
-              <span className="help">ให้ตัวละครพูดหยาบ ใช้คำสบถ และเล่นเนื้อหาผู้ใหญ่ได้ ถ้าไม่ติ๊กจะคุยสุภาพตามบทปกติ</span>
+              <span className="toggle-title">โหมดหยาบ 18+</span>
+              <span className="help">ตัวละครจะพูด กู/มึง ด่าและสบถใส่คุณ เล่นเนื้อหาผู้ใหญ่ได้ ถ้าไม่ติ๊กจะคุยสุภาพตามบท (เปิด/ปิดทีหลังในห้องแชทได้)</span>
             </span>
           </label>
         </div>

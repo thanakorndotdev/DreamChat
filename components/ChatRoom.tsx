@@ -176,9 +176,9 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
               onChange={(e) => onUpdate((c) => ({ ...c, adult: e.target.checked }))}
             />
             <span>
-              <span className="toggle-title">โหมด 18+</span>
+              <span className="toggle-title">โหมดหยาบ 18+</span>
               <span className="help">
-                {underage ? 'ตัวละครอายุต่ำกว่า 18 ปี ใช้โหมดนี้ไม่ได้' : 'พูดหยาบ ใช้คำสบถ และเนื้อหาผู้ใหญ่ได้ มีผลกับข้อความถัดไป'}
+                {underage ? 'ตัวละครหรือคุณอายุต่ำกว่า 18 ปี ใช้โหมดนี้ไม่ได้' : 'ตัวละครจะพูด กู/มึง ด่าและสบถใส่คุณ มีผลกับข้อความถัดไป (เปิด/ปิดที่ปุ่ม "หยาบ" บนแถบหัวได้ด้วย)'}
               </span>
             </span>
           </label>
@@ -214,6 +214,16 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
           </button>
           <div className="scene-tools">
             <StatusDot status={status} />
+            <button
+              className="rude-toggle"
+              aria-pressed={!!char.adult}
+              disabled={underage}
+              onClick={() => onUpdate((c) => ({ ...c, adult: !c.adult }))}
+              title={underage ? 'ตัวละครหรือคุณอายุต่ำกว่า 18 ปี ใช้โหมดหยาบไม่ได้' : 'ให้ตัวละครพูดหยาบ ใช้ กู/มึง และคำสบถกับคุณ (18+)'}
+            >
+              <span className="rude-track" aria-hidden />
+              หยาบ {char.adult ? 'เปิด' : 'ปิด'}
+            </button>
             {confirmClear ? (
               <span className="confirm">
                 <span className="confirm-q">ล้างบทสนทนา?</span>
