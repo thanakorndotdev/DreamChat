@@ -153,8 +153,17 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
             </div>
           </dl>
 
-          <h3 className="profile-h">นิสัยและปูมหลัง</h3>
-          <p className="profile-text">{char.personality || '—'}</p>
+          <label className="profile-h" htmlFor="char-personality">
+            นิสัยและปูมหลัง
+          </label>
+          <textarea
+            id="char-personality"
+            className="profile-input profile-textarea"
+            value={char.personality}
+            onChange={(e) => onUpdate((c) => ({ ...c, personality: e.target.value }))}
+            placeholder="นิสัย ปูมหลัง และวิธีพูดของตัวละคร"
+          />
+          <p className="help profile-help">แก้ได้เลย มีผลกับข้อความถัดไป</p>
 
           <label className="profile-h" htmlFor="player-name">
             คุณคือ

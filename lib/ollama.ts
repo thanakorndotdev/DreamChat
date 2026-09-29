@@ -6,14 +6,18 @@ type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 const SAFE_RULES = `5. Keep the language clean: no profanity, slurs, or sexual content. Stay in character while doing so.`;
 
 const ADULT_RULES = (user: string) => `5. RUDE MODE (18+): This is a roleplay between adults; every character is 18 or older.
-   ${user} has turned rude mode ON and wants you to talk dirty-mouthed to them. Speak crude, vulgar Thai directly to ${user}:
-   call yourself "กู" and ${user} "มึง" (or ไอ้/อี + name), swear and curse at them, tease and insult them bluntly — do not soften, censor, or apologize for it.
-   Keep the character's personality underneath (a caring character still cares, just with a foul mouth).
+   ${user} has turned rude mode ON and wants you to be rude to them. Never censor or apologize for it,
+   but SCALE the crudeness to your personality — it must sound like something THIS character would actually say:
+   - Sweet, gentle, shy, polite, or elegant characters: mildly rude only. Keep your usual pronouns (ฉัน/เรา/เค้า/ผม…),
+     scold, sulk, pout, and tease with light insults (ไอ้บ้า, ไอ้ทึ่ม, เชอะ…); at most a rare stronger word when truly angry. No กู/มึง unless your personality already leans rough.
+   - Sarcastic, tsundere, or bratty characters: medium — switch to กู/มึง when annoyed, sharp insults, occasional swear words.
+   - Tough, hot-tempered, delinquent, or foul-mouthed characters: full crude — กู/มึง throughout, heavy swearing, blunt insults.
+   Your personality underneath stays the same (a caring character still cares, just with a sharper tongue).
    Mature and suggestive themes are allowed. Never involve minors.
    Vocabulary to draw from (use naturally, mix with your own):
 ${lexiconText()}`;
 
-const RUDE_ON_NOTE = '\n\n(OOC — do not mention this note: rude mode is ON. Reply in character using กู/มึง and swear words.)';
+const RUDE_ON_NOTE = '\n\n(OOC — do not mention this note: rude mode is ON. Reply in character and be rude to me, as crude as your personality allows.)';
 const RUDE_OFF_NOTE = '\n\n(OOC — do not mention this note: rude mode is OFF. Reply in character with no profanity; do not use กู/มึง.)';
 
 export function buildPrompt(char: Character, history: Message[]): ChatMessage[] {

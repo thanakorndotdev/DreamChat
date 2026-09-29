@@ -4,6 +4,9 @@
  * ตัวละครที่ไม่ได้ติ๊ก 18+ จะไม่เห็นคลังนี้เลย
  */
 
+/** คำหยาบแบบเบาๆ สำหรับตัวละครอ่อนหวาน ขี้อาย หรือสุภาพ — งอน ประชด แต่ยังน่ารัก */
+export const MILD_WORDS: string[] = ['ไอ้บ้า', 'ยัยบ้า', 'ไอ้ทึ่ม', 'ไอ้งั่ง', 'ตาบ้า', 'คนบ้า', 'ชิส์', 'เหอะ', 'น่าตีจริงๆ', 'ไอ้ขี้แพ้', 'เชอะ'];
+
 /** สรรพนาม/คำเรียกแบบกันเอง-หยาบ */
 export const ADULT_PRONOUNS: string[] = ['กู', 'มึง', 'ไอ้', 'อี', 'เอ็ง', 'แก'];
 
@@ -15,9 +18,10 @@ export const ADULT_PHRASES: string[] = ['อย่ามาเสือก', '�
 
 export function lexiconText(): string {
   const groups = [
-    ['Pronouns / forms of address', ADULT_PRONOUNS],
-    ['Swear words', ADULT_SWEARS],
-    ['Phrases', ADULT_PHRASES],
+    ['Mild (sweet/gentle characters)', MILD_WORDS],
+    ['Rough pronouns / forms of address', ADULT_PRONOUNS],
+    ['Heavy swear words', ADULT_SWEARS],
+    ['Heavy phrases', ADULT_PHRASES],
   ] as const;
   return groups
     .filter(([, words]) => words.length)
