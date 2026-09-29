@@ -251,6 +251,12 @@ p {
   text-overflow: ellipsis;
 }
 
+.topbar-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
 .topbar-actions {
   display: flex;
   gap: 10px;
@@ -1247,7 +1253,7 @@ label.btn[aria-disabled='true'] {
     padding: 0;
     justify-content: center;
   }
-  .topbar-actions .btn-ghost .status span:last-child {
+  .topbar-status .status span:last-child {
     display: none;
   }
   .account-name {

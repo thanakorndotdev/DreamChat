@@ -5,7 +5,6 @@ import AuthScreen from '@/components/AuthScreen';
 import ChatRoom from '@/components/ChatRoom';
 import CreateWizard from '@/components/CreateWizard';
 import Lobby from '@/components/Lobby';
-import SettingsDialog from '@/components/SettingsDialog';
 import { useToast } from '@/components/Toast';
 import { useAuth, useCharacters, useOllama } from '@/lib/store';
 import type { Character } from '@/lib/types';
@@ -17,7 +16,6 @@ export default function Home() {
   const { toast, Toast } = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const active = characters.find((c) => c.id === activeId);
 
@@ -62,7 +60,6 @@ export default function Home() {
             toast('ลบตัวละครแล้ว');
           }}
           onCreate={() => setWizardOpen(true)}
-          onSettings={() => setSettingsOpen(true)}
           onLogout={() => {
             setActiveId(null);
             auth.logout();
@@ -71,13 +68,6 @@ export default function Home() {
       )}
 
       {wizardOpen && <CreateWizard host={ollama.host} model={ollama.model} onClose={() => setWizardOpen(false)} onCreate={create} />}
-      {settingsOpen && (
-        <SettingsDialog
-          ollama={ollama}
-          onClose={() => setSettingsOpen(false)}
-          onSaved={(ok) => toast(ok ? 'บันทึกแล้ว เชื่อมต่อ Ollama ได้' : 'บันทึกแล้ว แต่ยังติดต่อ Ollama ไม่ได้')}
-        />
-      )}
       <Toast />
     </>
   );

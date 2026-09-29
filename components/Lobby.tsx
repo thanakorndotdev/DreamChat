@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { GearSix, Plus, SignOut, Trash } from '@phosphor-icons/react';
+import { Plus, SignOut, Trash } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
 import StatusDot from './StatusDot';
 import type { Character, OllamaStatus } from '@/lib/types';
@@ -14,7 +14,6 @@ type Props = {
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
-  onSettings: () => void;
   onLogout: () => void;
 };
 
@@ -23,7 +22,7 @@ function lastLine(c: Character) {
   return visible.length ? visible[visible.length - 1].text : c.firstMessage;
 }
 
-export default function Lobby({ characters, ready, status, username, onOpen, onDelete, onCreate, onSettings, onLogout }: Props) {
+export default function Lobby({ characters, ready, status, username, onOpen, onDelete, onCreate, onLogout }: Props) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const recent = [...characters].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
 
@@ -35,10 +34,9 @@ export default function Lobby({ characters, ready, status, username, onOpen, onD
           <span className="brand-sub">โรลเพลย์กับตัวละครของคุณ</span>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-ghost" onClick={onSettings} aria-label="ตั้งค่า Ollama">
+          <span className="topbar-status">
             <StatusDot status={status} />
-            <GearSix size={18} />
-          </button>
+          </span>
           <button className="btn btn-primary" onClick={onCreate}>
             <Plus size={18} weight="bold" />
             <span>สร้างตัวละคร</span>

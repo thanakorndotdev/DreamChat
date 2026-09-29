@@ -19,4 +19,4 @@ export function resolveHost(raw: unknown): string | null {
   return process.env.OLLAMA_URL ? parseHost(process.env.OLLAMA_URL) : parseHost(raw);
 }
 
-export const OFFLINE_HINT = 'ติดต่อ Ollama ไม่ได้ เปิดโปรแกรม Ollama แล้วตรวจ Host URL ในหน้าตั้งค่า';
+export const OFFLINE_HINT = 'ติดต่อเซิร์ฟเวอร์ AI ไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่';

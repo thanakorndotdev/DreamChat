@@ -5,8 +5,6 @@ import { DEFAULT_CHARACTERS, DEFAULT_HOST, DEFAULT_MODEL } from './presets';
 import type { Character, OllamaStatus } from './types';
 
 const CHARS_KEY = 'dream_characters';
-const HOST_KEY = 'dream_ollama_host';
-const MODEL_KEY = 'dream_ollama_model';
 
 // Error replies written by the old single-file version were stored as plain text.
 const LEGACY_ERROR = /สะดุดเล็กน้อย|เกิดข้อผิดพลาด/;
@@ -17,12 +15,6 @@ function read(key: string): string | null {
   } catch {
     return null;
   }
-}
-
-function write(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {}
 }
 
 function normalize(list: Character[]): Character[] {
@@ -180,53 +172,24 @@ export function useCharacters(username: string | null | undefined) {
   return { characters, ready, saveFailed, update, add, remove };
 }
 
+/** AI backend status. The host is pinned on the server (OLLAMA_URL / Workers AI), so nothing here is user-configurable. */
 export function useOllama() {
-  const [host, setHost] = useState(DEFAULT_HOST);
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [status, setStatus] = useState<OllamaStatus>('checking');
-  const [models, setModels] = useState<string[]>([]);
 
-  const check = useCallback(async (h: string) => {
-    setStatus('checking');
-    try {
-      const res = await fetch(`/api/ollama/tags?host=${encodeURIComponent(h)}`);
-      if (!res.ok) throw new Error();
-      const data = (await res.json()) as { models: string[] };
-      setModels(data.models);
-      setStatus('online');
-      return true;
-    } catch {
-      setModels([]);
-      setStatus('offline');
-      return false;
-    }
+  useEffect(() => {
+    fetch(`/api/ollama/tags?host=${encodeURIComponent(DEFAULT_HOST)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json() as Promise<{ models: string[] }>;
+      })
+      .then(({ models }) => {
+        // Use a model the server actually has.
+        setModel((m) => (models.length && !models.includes(m) ? models[0] : m));
+        setStatus('online');
+      })
+      .catch(() => setStatus('offline'));
   }, []);
 
-  useEffect(() => {
-    const h = read(HOST_KEY) || DEFAULT_HOST;
-    setHost(h);
-    setModel(read(MODEL_KEY) || DEFAULT_MODEL);
-    check(h);
-  }, [check]);
-
-  // A saved model the server doesn't offer (e.g. an old Ollama tag) can't be used — switch to one it has.
-  useEffect(() => {
-    if (models.length && !models.includes(model)) {
-      setModel(models[0]);
-      write(MODEL_KEY, models[0]);
-    }
-  }, [models, model]);
-
-  const save = useCallback(
-    (h: string, m: string) => {
-      setHost(h);
-      setModel(m);
-      write(HOST_KEY, h);
-      write(MODEL_KEY, m);
-      return check(h);
-    },
-    [check],
-  );
-
-  return { host, model, status, models, check, save };
+  return { host: DEFAULT_HOST, model, status };
 }
