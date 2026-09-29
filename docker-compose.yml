@@ -1,0 +1,32 @@
+name: dreamchat
+
+services:
+  app:
+    build: .
+    container_name: dreamchat-app
+    restart: unless-stopped
+    environment:
+      # Server-side pin: the API routes ignore the Host URL typed in the browser.
+      - OLLAMA_URL=http://ollama:11434
+      # Set these to chat through Cloudflare Workers AI instead of Ollama.
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - CLOUDFLARE_MODEL=${CLOUDFLARE_MODEL:-}
+    ports:
+      - "100.84.226.15:3200:3000"  # tailnet only, for testing without the tunnel
+    volumes:
+      - dreamchat-data:/app/data   # accounts + chat history (SQLite)
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: dreamchat-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+    profiles: [tunnel]             # start with: docker compose --profile tunnel up -d
+
+volumes:
+  dreamchat-data:

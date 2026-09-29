@@ -10,4 +10,13 @@ export function parseHost(raw: unknown): string | null {
   }
 }
 
+/**
+ * The Ollama base URL the server proxies to. When OLLAMA_URL is set (deployed),
+ * it wins and the client-supplied host is ignored — otherwise the proxy would
+ * fetch any URL a visitor sends (SSRF into the host's private network).
+ */
+export function resolveHost(raw: unknown): string | null {
+  return process.env.OLLAMA_URL ? parseHost(process.env.OLLAMA_URL) : parseHost(raw);
+}
+
 export const OFFLINE_HINT = 'ติดต่อ Ollama ไม่ได้ เปิดโปรแกรม Ollama แล้วตรวจ Host URL ในหน้าตั้งค่า';

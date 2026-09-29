@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Shuffle, Sparkle } from '@phosphor-icons/react';
+import { useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, MagicWand, Shuffle, Sparkle, Stop, UploadSimple } from '@phosphor-icons/react';
 import Modal from './Modal';
-import { BOT_PRESETS, DEFAULT_AVATAR, IMAGE_THEMES, USER_PRESETS, pick } from '@/lib/presets';
+import { BOT_PRESETS, DEFAULT_AVATAR, IMAGE_THEMES, USER_PRESETS, pickNew } from '@/lib/presets';
+import { fileToAvatar } from '@/lib/image';
+import { generateCharacter } from '@/lib/ollama';
 import type { Character } from '@/lib/types';
 
 const STEPS = ['ตัวละคร', 'บทบาทคุณ', 'รูปภาพ'];
@@ -16,12 +18,19 @@ const EMPTY = {
   job: 'นักศึกษา',
   personality: '',
   firstMessage: '',
-  userName: 'ผู้เล่น',
+  userName: '',
   userGender: 'ชาย',
   userAge: '21 ปี',
   userJob: 'นักศึกษา',
   userRole: 'เพื่อนสนิทสมัยเด็กที่รู้ความลับของกันและกัน',
+  adult: false,
 };
+
+/** First number in a free-text age like "20 ปี"; null when there is none. */
+function ageNumber(age: string) {
+  const m = age.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
 
 const STYLE_TAGS =
   'korean manhwa webtoon style, romance novel cover art, semi-realistic digital painting, delicate porcelain skin, soft glossy lips, sparkling eyes, warm soft ambient lighting, highly detailed, trending on artstation';
@@ -37,7 +46,14 @@ async function toEnglish(prompt: string) {
   }
 }
 
-export default function CreateWizard({ onClose, onCreate }: { onClose: () => void; onCreate: (c: Character) => void }) {
+type Props = {
+  host: string;
+  model: string;
+  onClose: () => void;
+  onCreate: (c: Character) => void;
+};
+
+export default function CreateWizard({ host, model, onClose, onCreate }: Props) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -45,21 +61,64 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageState, setImageState] = useState<{ busy: boolean; text?: string; error?: string }>({ busy: false });
 
-  const set = (key: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const [outline, setOutline] = useState('');
+  const [aiState, setAiState] = useState<{ busy: boolean; chars?: number; error?: string }>({ busy: false });
+  const aiAbort = useRef<AbortController | null>(null);
+  const last = useRef<{ bot?: (typeof BOT_PRESETS)[number]; user?: (typeof USER_PRESETS)[number]; theme?: string }>({});
+
+  const set = (key: Exclude<keyof typeof EMPTY, 'adult'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
     setError(null);
   };
 
   const randomBot = () => {
-    const { imagePrompt: p, ...rest } = pick(BOT_PRESETS);
+    const preset = (last.current.bot = pickNew(BOT_PRESETS, last.current.bot));
+    const { imagePrompt: p, ...rest } = preset;
     setForm((f) => ({ ...f, ...rest }));
     setImagePrompt(p);
     setError(null);
   };
 
   const randomUser = () => {
-    setForm((f) => ({ ...f, ...pick(USER_PRESETS) }));
+    const preset = (last.current.user = pickNew(USER_PRESETS, last.current.user));
+    setForm((f) => ({ ...f, ...preset }));
     setError(null);
+  };
+
+  const aiGenerate = async () => {
+    const controller = new AbortController();
+    aiAbort.current = controller;
+    setAiState({ busy: true, chars: 0 });
+    setError(null);
+    try {
+      const { imagePrompt: p, ...draft } = await generateCharacter(
+        { host, model, outline, adult: form.adult, signal: controller.signal },
+        (chars) => setAiState({ busy: true, chars }),
+      );
+      // Adult mode needs an adult character; the model occasionally ignores that.
+      if (form.adult && (ageNumber(draft.age) ?? 18) < 18) draft.age = '20 ปี';
+      setForm((f) => ({ ...f, ...draft }));
+      if (p) setImagePrompt(p);
+      setAiState({ busy: false });
+    } catch (err) {
+      setAiState({
+        busy: false,
+        error: controller.signal.aborted ? undefined : err instanceof Error ? err.message : 'สร้างตัวละครไม่สำเร็จ',
+      });
+    } finally {
+      aiAbort.current = null;
+    }
+  };
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setImageState({ busy: true, text: 'กำลังย่อรูป…' });
+    try {
+      setAvatar(await fileToAvatar(file));
+      setImageState({ busy: false });
+    } catch (err) {
+      setImageState({ busy: false, error: err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ' });
+    }
   };
 
   const generateImage = async (prompt = imagePrompt) => {
@@ -83,6 +142,8 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
 
   const next = () => {
     if (step === 0 && !form.name.trim()) return setError('ใส่ชื่อตัวละครก่อนไปขั้นถัดไป');
+    if (step === 0 && form.adult && (ageNumber(form.age) ?? 18) < 18) return setError('โหมด 18+ ตัวละครต้องอายุ 18 ปีขึ้นไป');
+    if (step === 1 && form.adult && (ageNumber(form.userAge) ?? 18) < 18) return setError('โหมด 18+ ตัวคุณต้องอายุ 18 ปีขึ้นไป');
     if (step === 1 && !form.userName.trim()) return setError('ใส่ชื่อที่อยากให้ตัวละครเรียกคุณ');
     setError(null);
     if (step < 2) return setStep(step + 1);
@@ -102,6 +163,7 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
       userGender: form.userGender,
       userAge: form.userAge.trim(),
       userJob: form.userJob.trim(),
+      adult: form.adult,
       avatar,
       messages: [{ sender: 'char', text: firstMessage }],
       updatedAt: Date.now(),
@@ -112,7 +174,10 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
     <Modal
       title="สร้างตัวละคร"
       wide
-      onClose={onClose}
+      onClose={() => {
+        aiAbort.current?.abort();
+        onClose();
+      }}
       subtitle={
         <ol className="steps">
           {STEPS.map((label, i) => (
@@ -135,7 +200,7 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
               {error}
             </p>
           )}
-          <button className="btn btn-primary push" onClick={next} disabled={imageState.busy}>
+          <button className="btn btn-primary push" onClick={next} disabled={imageState.busy || aiState.busy}>
             {step === 2 ? 'เริ่มคุย' : 'ถัดไป'} {step < 2 && <ArrowRight size={16} />}
           </button>
         </>
@@ -143,6 +208,37 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
     >
       {step === 0 && (
         <div className="form">
+          <div className="ai-box">
+            <Field label="มีโครงเรื่องคร่าวๆ ไหม? ให้ AI คิดต่อให้" hint="เว้นว่างไว้ ให้ AI คิดเองทั้งหมดก็ได้ ผลลัพธ์จะลงช่องด้านล่าง แก้ต่อได้">
+              <textarea
+                rows={2}
+                value={outline}
+                onChange={(e) => setOutline(e.target.value)}
+                placeholder="เช่น หัวหน้าแก๊งมาเฟียที่ต้องแกล้งเป็นแฟนเรา / นางเงือกที่ขึ้นบกมาตามหาคนช่วยชีวิต"
+                disabled={aiState.busy}
+              />
+            </Field>
+            <div className="row">
+              {aiState.busy ? (
+                <>
+                  <button type="button" className="btn btn-soft" onClick={() => aiAbort.current?.abort()}>
+                    <Stop size={16} weight="fill" /> หยุด
+                  </button>
+                  <span className="help ai-progress">AI กำลังคิดเนื้อเรื่อง… {aiState.chars ? `${aiState.chars} ตัวอักษร` : ''}</span>
+                </>
+              ) : (
+                <button type="button" className="btn btn-primary" onClick={aiGenerate}>
+                  <MagicWand size={16} /> ให้ AI สร้างตัวละคร
+                </button>
+              )}
+            </div>
+            {aiState.error && (
+              <p className="form-error" role="alert">
+                {aiState.error}
+              </p>
+            )}
+          </div>
+
           <div className="form-lead">
             <p>ตัวละครที่ AI จะสวมบทบาท</p>
             <button type="button" className="btn btn-soft" onClick={randomBot}>
@@ -178,6 +274,20 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
           <Field label="ประโยคเปิดเรื่อง" hint="ใส่ *ท่าทาง* ในเครื่องหมายดอกจัน">
             <textarea rows={3} value={form.firstMessage} onChange={set('firstMessage')} placeholder="*ยืนมองคุณจากหน้าประตู* มาช้านะ…" />
           </Field>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={form.adult}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, adult: e.target.checked }));
+                setError(null);
+              }}
+            />
+            <span>
+              <span className="toggle-title">โหมด 18+</span>
+              <span className="help">ให้ตัวละครพูดหยาบ ใช้คำสบถ และเล่นเนื้อหาผู้ใหญ่ได้ ถ้าไม่ติ๊กจะคุยสุภาพตามบทปกติ</span>
+            </span>
+          </label>
         </div>
       )}
 
@@ -190,7 +300,7 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
             </button>
           </div>
           <Field label="ชื่อที่ให้ตัวละครเรียก" required>
-            <input value={form.userName} onChange={set('userName')} aria-invalid={!!error && !form.userName} />
+            <input value={form.userName} onChange={set('userName')} placeholder="เช่น เรย์" aria-invalid={!!error && !form.userName} />
           </Field>
           <div className="grid-3">
             <Field label="เพศ">
@@ -237,13 +347,26 @@ export default function CreateWizard({ onClose, onCreate }: { onClose: () => voi
                 className="btn btn-soft"
                 disabled={imageState.busy}
                 onClick={() => {
-                  const theme = pick(IMAGE_THEMES);
+                  const theme = (last.current.theme = pickNew(IMAGE_THEMES, last.current.theme));
                   setImagePrompt(theme);
                   generateImage(theme);
                 }}
               >
                 <Shuffle size={16} /> สุ่มภาพ
               </button>
+              <label className="btn btn-soft" aria-disabled={imageState.busy}>
+                <UploadSimple size={16} /> อัปโหลดรูป
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  disabled={imageState.busy}
+                  onChange={(e) => {
+                    upload(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
             </div>
             {imageState.error && (
               <p className="form-error" role="alert">

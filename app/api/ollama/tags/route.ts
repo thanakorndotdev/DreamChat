@@ -1,7 +1,11 @@
-import { OFFLINE_HINT, parseHost } from '@/lib/host';
+import { OFFLINE_HINT, resolveHost } from '@/lib/host';
+import { workersAi } from '@/lib/workersAi';
 
 export async function GET(req: Request) {
-  const host = parseHost(new URL(req.url).searchParams.get('host'));
+  const cf = workersAi();
+  if (cf) return Response.json({ models: [cf.model] });
+
+  const host = resolveHost(new URL(req.url).searchParams.get('host'));
   if (!host) return new Response('Host URL ไม่ถูกต้อง', { status: 400 });
 
   try {

@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import AuthScreen from '@/components/AuthScreen';
 import ChatRoom from '@/components/ChatRoom';
 import CreateWizard from '@/components/CreateWizard';
 import Lobby from '@/components/Lobby';
 import SettingsDialog from '@/components/SettingsDialog';
 import { useToast } from '@/components/Toast';
-import { useCharacters, useOllama } from '@/lib/store';
+import { useAuth, useCharacters, useOllama } from '@/lib/store';
 import type { Character } from '@/lib/types';
 
 export default function Home() {
-  const { characters, ready, update, add, remove } = useCharacters();
+  const auth = useAuth();
+  const { characters, ready, saveFailed, update, add, remove } = useCharacters(auth.username);
   const ollama = useOllama();
   const { toast, Toast } = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -18,6 +20,13 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const active = characters.find((c) => c.id === activeId);
+
+  useEffect(() => {
+    if (saveFailed) toast('บันทึกลงบัญชีไม่สำเร็จ ตรวจการเชื่อมต่อแล้วลองใหม่');
+  }, [saveFailed, toast]);
+
+  if (auth.username === undefined) return null;
+  if (auth.username === null) return <AuthScreen onSubmit={auth.submit} />;
 
   const open = (id: string) => {
     update(id, (c) => ({ ...c, updatedAt: Date.now() }));
@@ -46,7 +55,7 @@ export default function Home() {
           characters={characters}
           ready={ready}
           status={ollama.status}
-          model={ollama.model}
+          username={auth.username}
           onOpen={open}
           onDelete={(id) => {
             remove(id);
@@ -54,10 +63,14 @@ export default function Home() {
           }}
           onCreate={() => setWizardOpen(true)}
           onSettings={() => setSettingsOpen(true)}
+          onLogout={() => {
+            setActiveId(null);
+            auth.logout();
+          }}
         />
       )}
 
-      {wizardOpen && <CreateWizard onClose={() => setWizardOpen(false)} onCreate={create} />}
+      {wizardOpen && <CreateWizard host={ollama.host} model={ollama.model} onClose={() => setWizardOpen(false)} onCreate={create} />}
       {settingsOpen && (
         <SettingsDialog
           ollama={ollama}

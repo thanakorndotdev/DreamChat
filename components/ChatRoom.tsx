@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowClockwise, ArrowLeft, IdentificationCard, PaperPlaneRight, Stop, Trash } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowLeft, Camera, IdentificationCard, PaperPlaneRight, Stop, Trash } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
 import StatusDot from './StatusDot';
+import { fileToAvatar } from '@/lib/image';
 import { buildPrompt, streamChat } from '@/lib/ollama';
 import type { Character, Message, OllamaStatus } from '@/lib/types';
 
@@ -21,6 +22,7 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
   const [streaming, setStreaming] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const abort = useRef<AbortController | null>(null);
@@ -100,14 +102,40 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
   };
 
   const lastFailed = char.messages[char.messages.length - 1]?.failed;
+  const underage = [char.age, char.userAge].some((a) => Number(a?.match(/\d+/)?.[0] ?? 18) < 18);
 
   return (
     <div className="chat" data-profile={profileOpen ? 'open' : undefined}>
       <aside className="profile" aria-label="ข้อมูลตัวละคร">
         <div className="profile-portrait">
           <img src={char.avatar} alt="" />
+          <label className="portrait-change">
+            <Camera size={16} /> เปลี่ยนรูป
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                try {
+                  const avatar = await fileToAvatar(file);
+                  onUpdate((c) => ({ ...c, avatar }));
+                  setPhotoError(null);
+                } catch (err) {
+                  setPhotoError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ');
+                }
+              }}
+            />
+          </label>
         </div>
         <div className="profile-body">
+          {photoError && (
+            <p className="form-error" role="alert">
+              {photoError}
+            </p>
+          )}
           <h2 className="profile-name">{char.name}</h2>
           <p className="profile-role">{char.role}</p>
           <dl className="facts">
@@ -128,27 +156,64 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
           <h3 className="profile-h">นิสัยและปูมหลัง</h3>
           <p className="profile-text">{char.personality || '—'}</p>
 
-          <h3 className="profile-h">คุณคือ {char.userName || 'ผู้เล่น'}</h3>
+          <label className="profile-h" htmlFor="player-name">
+            คุณคือ
+          </label>
+          <input
+            id="player-name"
+            className="profile-input"
+            value={char.userName}
+            onChange={(e) => onUpdate((c) => ({ ...c, userName: e.target.value }))}
+            placeholder="ตั้งชื่อที่ให้ตัวละครเรียกคุณ"
+          />
           <p className="profile-text">{char.userRole || 'คนรู้จัก'}</p>
+
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={!!char.adult}
+              disabled={underage}
+              onChange={(e) => onUpdate((c) => ({ ...c, adult: e.target.checked }))}
+            />
+            <span>
+              <span className="toggle-title">โหมด 18+</span>
+              <span className="help">
+                {underage ? 'ตัวละครอายุต่ำกว่า 18 ปี ใช้โหมดนี้ไม่ได้' : 'พูดหยาบ ใช้คำสบถ และเนื้อหาผู้ใหญ่ได้ มีผลกับข้อความถัดไป'}
+              </span>
+            </span>
+          </label>
         </div>
       </aside>
       <button className="profile-scrim" aria-label="ปิดข้อมูลตัวละคร" onClick={() => setProfileOpen(false)} />
 
       <section className="scene">
+        <div className="scene-backdrop" aria-hidden="true">
+          <img src={char.avatar} alt="" />
+        </div>
         <header className="scene-head">
           <button className="icon-btn" onClick={onBack} aria-label="กลับหน้าหลัก">
             <ArrowLeft size={20} />
           </button>
-          <button className="scene-who" onClick={() => setProfileOpen((v) => !v)} aria-label="ดูข้อมูลตัวละคร">
+          <button
+            className="scene-who"
+            onClick={() => {
+              setProfileOpen((v) => !v);
+              if (!char.userName) requestAnimationFrame(() => document.getElementById('player-name')?.focus());
+            }}
+            aria-label="ดูข้อมูลตัวละคร"
+          >
             <img src={char.avatar} alt="" />
             <span>
-              <span className="scene-name">{char.name}</span>
-              <span className="scene-sub">คุณเป็น {char.userName || 'ผู้เล่น'}</span>
+              <span className="scene-name">
+                {char.name}
+                {char.adult && <span className="badge-adult">18+</span>}
+              </span>
+              <span className="scene-sub">{char.userName ? `คุณเป็น ${char.userName}` : 'แตะเพื่อตั้งชื่อของคุณ'}</span>
             </span>
             <IdentificationCard className="only-mobile" size={18} />
           </button>
           <div className="scene-tools">
-            <StatusDot status={status} model={model} />
+            <StatusDot status={status} />
             {confirmClear ? (
               <span className="confirm">
                 <span className="confirm-q">ล้างบทสนทนา?</span>

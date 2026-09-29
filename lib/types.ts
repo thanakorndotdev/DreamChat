@@ -20,6 +20,8 @@ export type Character = {
   userGender?: string;
   userAge?: string;
   userJob?: string;
+  /** 18+ mode: crude language and mature themes, using lib/lexicon.ts. */
+  adult?: boolean;
   messages: Message[];
   updatedAt: number;
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { GearSix, Plus, Trash } from '@phosphor-icons/react';
+import { GearSix, Plus, SignOut, Trash } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
 import StatusDot from './StatusDot';
 import type { Character, OllamaStatus } from '@/lib/types';
@@ -10,11 +10,12 @@ type Props = {
   characters: Character[];
   ready: boolean;
   status: OllamaStatus;
-  model: string;
+  username: string;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
   onSettings: () => void;
+  onLogout: () => void;
 };
 
 function lastLine(c: Character) {
@@ -22,7 +23,7 @@ function lastLine(c: Character) {
   return visible.length ? visible[visible.length - 1].text : c.firstMessage;
 }
 
-export default function Lobby({ characters, ready, status, model, onOpen, onDelete, onCreate, onSettings }: Props) {
+export default function Lobby({ characters, ready, status, username, onOpen, onDelete, onCreate, onSettings, onLogout }: Props) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const recent = [...characters].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
 
@@ -31,16 +32,20 @@ export default function Lobby({ characters, ready, status, model, onOpen, onDele
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">Dream Chat</span>
-          <span className="brand-sub">โรลเพลย์กับตัวละครของคุณ ประมวลผลในเครื่อง</span>
+          <span className="brand-sub">โรลเพลย์กับตัวละครของคุณ</span>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-ghost" onClick={onSettings} aria-label="ตั้งค่า Ollama">
-            <StatusDot status={status} model={model} />
+            <StatusDot status={status} />
             <GearSix size={18} />
           </button>
           <button className="btn btn-primary" onClick={onCreate}>
             <Plus size={18} weight="bold" />
             <span>สร้างตัวละคร</span>
+          </button>
+          <button className="btn btn-ghost account" onClick={onLogout} aria-label={`ออกจากระบบ (${username})`} title="ออกจากระบบ">
+            <span className="account-name">{username}</span>
+            <SignOut size={18} />
           </button>
         </div>
       </header>
@@ -90,6 +95,7 @@ export default function Lobby({ characters, ready, status, model, onOpen, onDele
                   <button className="cover" onClick={() => onOpen(c.id)} aria-label={`เปิดแชตกับ ${c.name}`}>
                     <img src={c.avatar} alt="" loading="lazy" />
                     <span className="cover-shade" />
+                    {c.adult && <span className="badge-adult cover-badge">18+</span>}
                     <span className="cover-title">
                       <span className="cover-name">{c.name}</span>
                       <span className="cover-role">{c.role}</span>
