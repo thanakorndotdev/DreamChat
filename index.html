@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dream Chat - Roleplay Studio (Local Ollama)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f5f3ff',
+              100: '#ede9fe',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              700: '#6d28d9',
+              800: '#5b21b6',
+              900: '#4c1d95',
+            },
+            dark: {
+              bg: '#0f1117',
+              card: '#161922',
+              surface: '#1f2430',
+              border: '#2e3446',
+              text: '#f1f5f9',
+              muted: '#94a3b8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+    * { font-family: 'Prompt', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 17, 23, 0.6); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #2e3446; border-radius: 9999px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #7c3aed; }
+    .rp-action { color: #c084fc !important; font-style: italic; font-weight: 400; }
+  </style>
+</head>
+<body class="bg-dark-bg text-dark-text min-h-screen overflow-hidden antialiased select-none">
+
+  <!-- ========================================== -->
+  <!-- SCREEN 1: LOBBY                            -->
+  <!-- ========================================== -->
+  <div id="lobbyScreen" class="h-screen w-screen flex flex-col overflow-y-auto custom-scrollbar">
+    <header class="h-16 border-b border-dark-border bg-dark-card/90 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between px-6">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-pink-500 flex items-center justify-center shadow-lg shadow-brand-600/30">
+          <i class="ph-bold ph-chats-circle text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-300 bg-clip-text text-transparent">Dream Chat</h1>
+          <p class="text-[11px] text-dark-muted leading-tight">รันผ่าน Localhost Ollama ในเครื่องของคุณ</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button onclick="openSettingsModal()" class="flex items-center space-x-2 px-3 py-2 rounded-xl bg-dark-surface hover:bg-dark-border border border-dark-border text-sm font-medium transition text-gray-200">
+          <i class="ph-bold ph-hard-drives text-brand-400 text-lg"></i>
+          <span class="hidden sm:inline">ตั้งค่าโมเดลเครื่อง</span>
+          <span id="ollamaStatusBadge" class="w-2.5 h-2.5 rounded-full bg-amber-500 ml-1" title="สถานะ Ollama"></span>
+        </button>
+
+        <button onclick="openWizardModal()" class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-medium text-sm shadow-lg shadow-brand-600/30 transition transform active:scale-95">
+          <i class="ph-bold ph-plus-circle text-lg"></i>
+          <span>สร้างตัวละครใหม่</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto p-6 md:p-8 space-y-8">
+      <section id="recentPlayedSection" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold flex items-center space-x-2 text-purple-300">
+            <i class="ph-fill ph-clock-counter-clockwise text-xl text-brand-500"></i>
+            <span>เล่นล่าสุด</span>
+          </h2>
+        </div>
+        <div id="recentPlayedCard" class="relative overflow-hidden rounded-2xl border border-brand-500/30 bg-gradient-to-r from-dark-card via-dark-surface to-brand-950/20 p-5 md:p-6 shadow-2xl flex flex-col md:flex-row items-center gap-6 group hover:border-brand-500/60 transition duration-300">
+        </div>
+      </section>
+
+      <section>
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h2 class="text-xl font-bold flex items-center space-x-2 text-slate-100">
+              <i class="ph-bold ph-users-three text-2xl text-brand-400"></i>
+              <span>ตัวละครทั้งหมด</span>
+            </h2>
+          </div>
+          <span id="charCountTag" class="text-xs px-3 py-1 rounded-full bg-dark-surface border border-dark-border text-brand-300 font-medium">0 ตัวละคร</span>
+        </div>
+        <div id="characterGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- SCREEN 2: CHAT ROOM                        -->
+  <!-- ========================================== -->
+  <div id="chatScreen" class="h-screen w-screen hidden flex flex-col md:flex-row overflow-hidden bg-dark-bg">
+    <aside class="w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-dark-border bg-dark-card flex flex-col h-auto md:h-screen shrink-0 z-10">
+      <div class="h-16 px-4 border-b border-dark-border flex items-center justify-between bg-dark-surface/50">
+        <button onclick="backToLobby()" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-dark-card hover:bg-dark-border text-dark-text border border-dark-border text-sm font-medium transition active:scale-95">
+          <i class="ph-bold ph-arrow-left text-lg text-brand-400"></i>
+          <span>หน้าหลัก</span>
+        </button>
+        <div class="flex items-center space-x-1">
+          <button onclick="clearChatHistory()" class="p-2 text-dark-muted hover:text-red-400 rounded-lg hover:bg-dark-surface transition" title="ล้างประวัติการคุย">
+            <i class="ph-bold ph-trash text-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
+        <div class="relative w-full aspect-square rounded-2xl overflow-hidden border border-dark-border shadow-2xl bg-dark-surface group">
+          <img id="sideCharAvatar" src="" alt="Avatar" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+          <div class="absolute inset-0 bg-gradient-to-t from-dark-bg/95 via-dark-bg/20 to-transparent"></div>
+          
+          <div class="absolute bottom-3 left-3 right-3">
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50 animate-pulse"></span>
+              <span class="text-xs uppercase tracking-wider text-emerald-400 font-semibold">Local Processing</span>
+            </div>
+            <h2 id="sideCharName" class="text-2xl font-bold text-white mt-1 drop-shadow-md">...</h2>
+            <p id="sideCharRole" class="text-xs text-brand-300 font-medium line-clamp-1">...</p>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-purple-950/40 to-indigo-950/40 border border-purple-800/40 flex items-start space-x-3">
+          <div class="w-8 h-8 rounded-lg bg-brand-600/30 border border-brand-500/40 flex items-center justify-center shrink-0 mt-0.5">
+            <i class="ph-bold ph-user-circle text-lg text-purple-300"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[11px] text-purple-300 font-medium">คุณสวมบทบาทเป็น:</div>
+            <div id="sideUserName" class="text-sm font-bold text-white truncate">ผู้เล่น</div>
+            <div id="sideUserRole" class="text-xs text-purple-200/80 mt-0.5 line-clamp-2">...</div>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="bg-dark-surface/60 rounded-xl p-4 border border-dark-border">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5 mb-2">
+              <i class="ph-bold ph-sparkle text-brand-400"></i>
+              <span>บุคลิกภาพ & ปูมหลังตัวละคร</span>
+            </h3>
+            <p id="sideCharPersonality" class="text-xs md:text-sm text-slate-300 leading-relaxed whitespace-pre-line custom-scrollbar max-h-48 overflow-y-auto">
+              ...
+            </p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="flex-1 flex flex-col h-full bg-dark-bg/95 relative overflow-hidden">
+      <div class="h-16 px-6 border-b border-dark-border bg-dark-card/60 backdrop-blur-sm flex items-center justify-between shrink-0">
+        <div class="flex items-center space-x-3">
+          <img id="chatHeaderAvatar" src="" class="w-10 h-10 rounded-full object-cover border border-brand-500/50 shadow" />
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 id="chatHeaderName" class="font-bold text-slate-100 text-base">...</h3>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-brand-900/50 text-brand-300 border border-brand-700/50">Local Roleplay</span>
+            </div>
+            <p id="chatHeaderSubtitle" class="text-xs text-dark-muted truncate max-w-xs md:max-w-md">...</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="text-xs text-emerald-400 font-mono" id="modelIndicator">Ollama Connected</span>
+        </div>
+      </div>
+
+      <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 custom-scrollbar text-[16px] md:text-[17.5px] leading-relaxed">
+      </div>
+
+      <div id="typingIndicator" class="hidden px-8 py-2 text-xs text-purple-400 flex items-center space-x-2">
+        <div class="w-2 h-2 rounded-full bg-purple-500 animate-bounce"></div>
+        <div class="w-2 h-2 rounded-full bg-purple-500 animate-bounce [animation-delay:0.2s]"></div>
+        <div class="w-2 h-2 rounded-full bg-purple-500 animate-bounce [animation-delay:0.4s]"></div>
+        <span class="italic font-medium" id="typingText">เครื่องกำลังประมวลผลคำตอบ...</span>
+      </div>
+
+      <div class="p-4 md:p-6 bg-dark-card/90 border-t border-dark-border shrink-0">
+        <form id="chatForm" onsubmit="handleSendMessage(event)" class="max-w-4xl mx-auto flex items-end gap-3">
+          <div class="flex-1 bg-dark-surface rounded-2xl border border-dark-border focus-within:border-brand-500 transition shadow-inner flex flex-col p-2">
+            <textarea 
+              id="messageInput" 
+              rows="2" 
+              placeholder="พิมพ์ข้อความของคุณ... (ใส่ *เพื่อบรรยายการกระทำ* เช่น *เดินเข้าไปจับมือ*)" 
+              class="w-full bg-transparent text-slate-100 placeholder-dark-muted text-base md:text-lg resize-none outline-none px-3 py-1 custom-scrollbar"></textarea>
+            
+            <div class="flex items-center justify-between px-2 pt-1 border-t border-dark-border/50 text-xs text-dark-muted">
+              <span>กด <b>Enter</b> เพื่อส่ง, <b>Shift + Enter</b> ขึ้นบรรทัดใหม่</span>
+              <button type="button" onclick="insertAsterisks()" class="text-brand-400 hover:text-brand-300 font-mono">
+                + ใส่ *ท่าทาง*
+              </button>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            id="sendBtn"
+            class="h-14 px-6 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-brand-600/30 transition flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50">
+            <i class="ph-bold ph-paper-plane-right text-2xl"></i>
+            <span class="hidden sm:inline font-semibold">ส่ง</span>
+          </button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: 3-STEP WIZARD                                     -->
+  <!-- ======================================================== -->
+  <div id="wizardModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-dark-card border border-dark-border rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+      
+      <div class="p-6 border-b border-dark-border bg-dark-surface/40 flex items-center justify-between">
+        <div>
+          <h3 class="text-xl font-bold text-white flex items-center space-x-2">
+            <i class="ph-bold ph-magic-wand text-brand-400"></i>
+            <span>สร้างตัวละครและบทบาท</span>
+          </h3>
+          <p class="text-xs text-dark-muted mt-0.5" id="stepSubTitle">สเต็ป 1 จาก 3: ข้อมูลตัวละคร AI</p>
+        </div>
+        <button onclick="closeWizardModal()" class="w-8 h-8 rounded-full bg-dark-surface hover:bg-dark-border text-dark-muted hover:text-white flex items-center justify-center transition">
+          <i class="ph-bold ph-x text-base"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-3 bg-dark-surface/80 border-b border-dark-border text-xs text-center font-medium">
+        <div id="stepTab1" class="py-2.5 border-b-2 border-brand-500 text-brand-300 flex items-center justify-center space-x-1.5 transition">
+          <span class="w-5 h-5 rounded-full bg-brand-600 text-white text-[11px] flex items-center justify-center">1</span>
+          <span>1. ตัวละคร AI</span>
+        </div>
+        <div id="stepTab2" class="py-2.5 border-b-2 border-transparent text-dark-muted flex items-center justify-center space-x-1.5 transition">
+          <span class="w-5 h-5 rounded-full bg-dark-border text-slate-300 text-[11px] flex items-center justify-center">2</span>
+          <span>2. บทบาทคุณ</span>
+        </div>
+        <div id="stepTab3" class="py-2.5 border-b-2 border-transparent text-dark-muted flex items-center justify-center space-x-1.5 transition">
+          <span class="w-5 h-5 rounded-full bg-dark-border text-slate-300 text-[11px] flex items-center justify-center">3</span>
+          <span>3. รูปภาพ AI</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+
+        <!-- STEP 1: ข้อมูลตัวละคร AI -->
+        <div id="wizardStep1" class="space-y-4">
+          <div class="flex items-center justify-between pb-1">
+            <h4 class="text-sm font-bold text-purple-300 flex items-center space-x-1.5">
+              <i class="ph-bold ph-robot"></i>
+              <span>ข้อมูลพื้นฐานของตัวละคร AI</span>
+            </h4>
+            <button type="button" onclick="randomAiBotComplete()" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-semibold flex items-center space-x-1 shadow transition active:scale-95">
+              <i class="ph-bold ph-shuffle"></i>
+              <span>🎲 สุ่มข้อมูล & นิสัย</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">ชื่อตัวละคร <span class="text-rose-400">*</span></label>
+              <input type="text" id="charNameInput" placeholder="เช่น ไอริส" class="w-full px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-sm text-white focus:border-brand-500 outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">คำจำกัดความ / คอนเซปต์</label>
+              <input type="text" id="charRoleInput" placeholder="เช่น สาวข้างบ้านปากร้ายใจดี" class="w-full px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-sm text-white focus:border-brand-500 outline-none" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">เพศ</label>
+              <select id="charGenderInput" class="w-full px-3 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs sm:text-sm text-white focus:border-brand-500 outline-none">
+                <option value="หญิง">หญิง</option>
+                <option value="ชาย">ชาย</option>
+                <option value="อื่นๆ">อื่นๆ</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">อายุ</label>
+              <input type="text" id="charAgeInput" placeholder="เช่น 20 ปี" class="w-full px-3 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs sm:text-sm text-white focus:border-brand-500 outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">อาชีพ</label>
+              <input type="text" id="charJobInput" placeholder="เช่น นักศึกษา" class="w-full px-3 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs sm:text-sm text-white focus:border-brand-500 outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">
+              ลักษณะนิสัย ปูมหลัง & กฎการตอบ
+            </label>
+            <textarea id="charPersonalityInput" rows="3" placeholder="พิมพ์รายละเอียดนิสัย..." class="w-full px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs md:text-sm text-white focus:border-brand-500 outline-none custom-scrollbar leading-relaxed"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">ข้อความเปิดบทสนทนาแรก</label>
+            <textarea id="charFirstMsgInput" rows="2" placeholder="*ยืนมองคุณ...*" class="w-full px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs md:text-sm text-white focus:border-brand-500 outline-none custom-scrollbar"></textarea>
+          </div>
+        </div>
+
+        <!-- STEP 2: บทบาทของคุณ (ผู้เล่น) -->
+        <div id="wizardStep2" class="space-y-4 hidden">
+          <div class="bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-dark-surface p-3.5 rounded-2xl border border-brand-500/30 flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-bold text-white flex items-center space-x-1.5">
+                <i class="ph-bold ph-identification-card text-brand-400 text-lg"></i>
+                <span>ข้อมูลตัวละครของคุณ (User Persona)</span>
+              </h4>
+            </div>
+            <button type="button" onclick="randomUserPersonaComplete()" class="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center space-x-1 shadow transition shrink-0 active:scale-95">
+              <i class="ph-bold ph-shuffle"></i>
+              <span>🎲 สุ่มบทบาท</span>
+            </button>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">
+              ชื่อของคุณที่อยากให้ตัวละครเรียก <span class="text-rose-400">*</span>
+            </label>
+            <input type="text" id="userPersonaNameInput" value="ผู้เล่น" class="w-full px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-sm text-white focus:border-brand-500 outline-none font-medium" />
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">เพศของคุณ</label>
+              <select id="userGenderInput" class="w-full px-3 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs sm:text-sm text-white focus:border-brand-500 outline-none">
+                <option value="ชาย">ชาย</option>
+                <option value="หญิง">หญิง</option>
+                <option value="อื่นๆ">อื่นๆ</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">อายุของคุณ</label>
+              <input type="text" id="userAgeInput" placeholder="เช่น 21 ปี" class="w-full px-3 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs sm:text-sm text-white focus:border-brand-500 outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">อาชีพของคุณ</label>
+              <input type="text" id="userJobInput" placeholder="เช่น นักศึกษา" class="w-full px-3 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs sm:text-sm text-white focus:border-brand-500 outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">
+              บทบาท / ความสัมพันธ์กับตัวละคร
+            </label>
+            <textarea id="userPersonaRoleInput" rows="3" class="w-full px-3.5 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs md:text-sm text-white focus:border-brand-500 outline-none custom-scrollbar leading-relaxed">เพื่อนสนิทสมัยเด็กที่รู้ความลับของกันและกัน</textarea>
+          </div>
+        </div>
+
+        <!-- STEP 3: เจนภาพตัวละคร AI -->
+        <div id="wizardStep3" class="space-y-5 hidden">
+          <div class="text-center max-w-md mx-auto">
+            <h4 class="text-base font-bold text-slate-100">เลือกหรือสร้างรูปภาพตัวละคร</h4>
+            <p class="text-xs text-dark-muted mt-0.5">พิมพ์คำบรรยายภาษาไทย ให้ AI วาดภาพลายเส้น Manhwa Romance</p>
+          </div>
+
+          <div class="flex flex-col items-center">
+            <div class="relative w-48 h-48 sm:w-52 sm:h-52 rounded-2xl overflow-hidden border-2 border-brand-500/50 shadow-2xl bg-dark-surface flex items-center justify-center group">
+              <img id="wizardPreviewImg" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500" alt="Preview" class="w-full h-full object-cover" />
+              <div id="imgLoadingOverlay" class="absolute inset-0 bg-black/70 backdrop-blur-sm hidden flex-col items-center justify-center space-y-2">
+                <i class="ph-bold ph-spinner animate-spin text-3xl text-brand-400"></i>
+                <span class="text-xs text-purple-200" id="loadingStatusText">AI กำลังวาดภาพ...</span>
+              </div>
+            </div>
+            
+            <div class="mt-2.5 flex items-center space-x-2">
+              <button type="button" onclick="randomAiImage()" class="px-3 py-1.5 rounded-lg bg-dark-surface hover:bg-dark-border border border-dark-border text-xs text-brand-300 flex items-center space-x-1 transition">
+                <i class="ph-bold ph-shuffle"></i>
+                <span>สุ่มภาพทันใจ</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-dark-surface/60 p-3.5 rounded-2xl border border-dark-border space-y-2.5">
+            <label class="block text-xs font-semibold text-purple-300 flex items-center space-x-1.5">
+              <i class="ph-bold ph-paint-brush"></i>
+              <span>พิมพ์คำบรรยายภาพ (ภาษาไทย):</span>
+            </label>
+            <div class="flex gap-2">
+              <input 
+                type="text" 
+                id="imagePromptInput" 
+                placeholder="เช่น ผู้หญิงสวย ใส่แว่นตากลม ผมยาวลอนสีน้ำตาล ติดโบว์สีชมพู ยิ้มหวานอ่อนโยน" 
+                class="flex-1 px-3.5 py-2 rounded-xl bg-dark-card border border-dark-border text-xs sm:text-sm text-slate-100 placeholder-dark-muted focus:border-brand-500 outline-none" />
+              <button 
+                type="button" 
+                onclick="generateAiImage()" 
+                class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium text-xs sm:text-sm shrink-0 flex items-center space-x-1.5 shadow transition">
+                <i class="ph-bold ph-sparkle text-base"></i>
+                <span>สร้างภาพ</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">หรือวางลิงก์รูปภาพโดยตรง</label>
+            <input 
+              type="url" 
+              id="customAvatarUrlInput" 
+              oninput="updateCustomImageFromUrl(this.value)"
+              placeholder="https://images.unsplash.com/..." 
+              class="w-full px-3 py-2 rounded-xl bg-dark-surface border border-dark-border text-xs text-slate-200 outline-none focus:border-brand-500" />
+          </div>
+        </div>
+
+      </div>
+
+      <div class="p-4 px-6 border-t border-dark-border bg-dark-surface/60 flex items-center justify-between">
+        <button 
+          type="button" 
+          id="wizardPrevBtn" 
+          onclick="prevWizardStep()" 
+          class="hidden px-4 py-2 rounded-xl bg-dark-surface hover:bg-dark-border border border-dark-border text-sm font-medium text-slate-300 transition flex items-center space-x-1.5">
+          <i class="ph-bold ph-arrow-left"></i>
+          <span>ย้อนกลับ</span>
+        </button>
+        <div class="ml-auto flex items-center space-x-3">
+          <button 
+            type="button" 
+            onclick="closeWizardModal()" 
+            class="px-4 py-2 rounded-xl text-dark-muted hover:text-white text-sm font-medium transition">
+            ยกเลิก
+          </button>
+          <button 
+            type="button" 
+            id="wizardNextBtn" 
+            onclick="nextWizardStep()" 
+            class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-brand-600/30 transition flex items-center space-x-2 active:scale-95">
+            <span id="nextBtnText">ถัดไป: ใส่บทบาทของคุณ</span>
+            <i class="ph-bold ph-arrow-right" id="nextBtnIcon"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: OLLAMA SETTINGS -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-dark-card border border-dark-border rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-in fade-in duration-200">
+      <div class="flex items-center justify-between border-b border-dark-border pb-4">
+        <div class="flex items-center space-x-2.5">
+          <i class="ph-bold ph-hard-drives text-2xl text-brand-400"></i>
+          <h3 class="text-lg font-bold text-white">ตั้งค่า Local Ollama Engine</h3>
+        </div>
+        <button onclick="closeSettingsModal()" class="w-8 h-8 rounded-full bg-dark-surface hover:bg-dark-border text-dark-muted hover:text-white flex items-center justify-center transition">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Ollama Host URL</label>
+          <input type="text" id="ollamaHostInput" value="http://localhost:11434" class="w-full px-3.5 py-2.5 rounded-xl bg-dark-surface border border-dark-border text-sm text-slate-100 font-mono focus:border-brand-500 outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">ชื่อโมเดลในเครื่อง (Model Tag)</label>
+          <input type="text" id="ollamaModelInput" placeholder="เช่น llama3.1:8b หรือ mistral" value="llama3.1:8b" class="w-full px-3.5 py-2.5 rounded-xl bg-dark-surface border border-dark-border text-sm text-slate-100 font-mono focus:border-brand-500 outline-none" />
+          <p class="text-[11px] text-dark-muted mt-1.5">
+            * ต้องตรงกับชื่อโมเดลที่คุณรันคำสั่ง <code>ollama pull &lt;model&gt;</code> ในเครื่อง
+          </p>
+        </div>
+
+        <div class="p-3 bg-dark-surface/50 border border-dark-border rounded-xl flex items-center justify-between">
+          <span class="text-xs text-slate-300">ทดสอบการเชื่อมต่อเซิร์ฟเวอร์:</span>
+          <button type="button" onclick="testOllamaConnection(true)" class="px-3 py-1 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium">ทดสอบทันที</button>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2 border-t border-dark-border">
+        <button onclick="closeSettingsModal()" class="px-4 py-2 rounded-xl text-dark-muted hover:text-white text-xs font-medium">ยกเลิก</button>
+        <button onclick="saveOllamaSettings()" class="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium text-xs shadow-lg shadow-brand-600/30">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let characters = [];
+    let currentCharacterId = null;
+    let ollamaHost = localStorage.getItem('dream_ollama_host') || 'http://localhost:11434';
+    let ollamaModel = localStorage.getItem('dream_ollama_model') || 'llama3.1:8b';
+    let currentWizardStep = 1;
+    let selectedWizardAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500';
+
+    const DEFAULT_CHARACTERS = [
+      {
+        id: 'char-1',
+        name: 'ไอริส (Iris)',
+        role: 'สาวข้างบ้านปากร้ายใจดี',
+        gender: 'หญิง',
+        age: '20 ปี',
+        job: 'นักศึกษา',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500',
+        personality: 'ปากร้าย ขี้ประชด แต่จริงใจและแคร์คุณมากที่สุด แอบชอบคุณมาตั้งแต่เด็กแต่ชอบทำเป็นดุแก้เขิน',
+        firstMessage: '*ยืนกอดอกพิงประตูห้องแล้วจ้องหน้าคุณอย่างไม่พอใจ* กว่าจะกลับมาได้นะ... ไปเถลไถลที่ไหนมาล่ะ? ฉันไม่ได้มารอเพราะเป็นห่วงนะ แค่ทำแกงกะหรี่เหลือเลยเอามาให้เฉยๆ ต่างหาก!',
+        userName: 'พี',
+        userRole: 'เพื่อนสนิทข้างบ้านที่รู้จักกันมาตั้งแต่เด็ก',
+        messages: [
+          { sender: 'char', text: '*ยืนกอดอกพิงประตูห้องแล้วจ้องหน้าคุณอย่างไม่พอใจ* กว่าจะกลับมาได้นะ... ไปเถลไถลที่ไหนมาล่ะ? ฉันไม่ได้มารอเพราะเป็นห่วงนะ แค่ทำแกงกะหรี่เหลือเลยเอามาให้เฉยๆ ต่างหาก!' }
+        ],
+        updatedAt: Date.now()
+      }
+    ];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadCharacters();
+      testOllamaConnection(false);
+      renderLobby();
+    });
+
+    function loadCharacters() {
+      const saved = localStorage.getItem('dream_characters');
+      if (saved) {
+        try { characters = JSON.parse(saved); } catch (e) { characters = DEFAULT_CHARACTERS; }
+      } else {
+        characters = DEFAULT_CHARACTERS;
+        saveCharacters();
+      }
+    }
+
+    function saveCharacters() {
+      localStorage.setItem('dream_characters', JSON.stringify(characters));
+      renderLobby();
+    }
+
+    async function testOllamaConnection(showAlert = false) {
+      const badge = document.getElementById('ollamaStatusBadge');
+      const indicator = document.getElementById('modelIndicator');
+      try {
+        const res = await fetch(`${ollamaHost}/api/tags`);
+        if (res.ok) {
+          badge.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-md shadow-emerald-500/50 ml-1';
+          badge.title = 'เชื่อมต่อ Ollama ในเครื่องสำเร็จ';
+          if (indicator) indicator.textContent = `Ollama (${ollamaModel})`;
+          if (showAlert) alert('เชื่อมต่อ Ollama สำเร็จและพร้อมใช้งานแล้วครับ!');
+          return true;
+        }
+      } catch (err) {}
+      badge.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 ml-1';
+      badge.title = 'ไม่พบ Ollama หรือยังไม่ได้เปิดโปรแกรม';
+      if (indicator) indicator.textContent = 'Ollama Offline';
+      if (showAlert) alert('ไม่สามารถเชื่อมต่อ Ollama ได้ กรุณาตรวจสอบว่าเปิดโปรแกรม Ollama และตั้งค่า OLLAMA_ORIGINS แล้ว');
+      return false;
+    }
+
+    function renderLobby() {
+      const grid = document.getElementById('characterGrid');
+      const recentSection = document.getElementById('recentPlayedSection');
+      const recentCard = document.getElementById('recentPlayedCard');
+      const countTag = document.getElementById('charCountTag');
+
+      countTag.textContent = `${characters.length} ตัวละคร`;
+      grid.innerHTML = '';
+
+      if (characters.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-16 text-center text-dark-muted">
+            <i class="ph-bold ph-ghost text-5xl mb-3 text-brand-400"></i>
+            <p class="text-base">ยังไม่มีตัวละครเลย กดปุ่ม "+ สร้างตัวละครใหม่" ด้านบนเพื่อเริ่มสร้างได้เลย!</p>
+          </div>
+        `;
+        recentSection.classList.add('hidden');
+        return;
+      }
+
+      const sorted = [...characters].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      const recent = sorted[0];
+
+      if (recent) {
+        recentSection.classList.remove('hidden');
+        const lastMsg = recent.messages && recent.messages.length > 0 
+          ? recent.messages[recent.messages.length - 1].text 
+          : recent.firstMessage;
+
+        recentCard.innerHTML = `
+          <div class="relative w-28 h-28 md:w-36 md:h-36 rounded-2xl overflow-hidden shrink-0 border border-brand-500/40 shadow-xl">
+            <img src="${recent.avatar}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent"></div>
+            <span class="absolute bottom-1.5 left-2 text-[10px] px-2 py-0.5 rounded-md bg-brand-600/90 text-white font-medium">เล่นล่าสุด</span>
+          </div>
+
+          <div class="flex-1 min-w-0 text-left space-y-2">
+            <div>
+              <div class="flex items-center space-x-2">
+                <h3 class="text-2xl font-bold text-white group-hover:text-brand-300 transition">${escapeHtml(recent.name)}</h3>
+                <span class="text-xs px-2.5 py-0.5 rounded-full bg-dark-surface border border-dark-border text-brand-300">${escapeHtml(recent.role || 'Roleplay AI')}</span>
+              </div>
+              <p class="text-xs text-purple-300/80 mt-0.5">คุณกำลังเล่นเป็น: <b>${escapeHtml(recent.userName || 'ผู้เล่น')}</b></p>
+            </div>
+
+            <p class="text-sm text-slate-300 italic line-clamp-2 bg-dark-bg/60 p-3 rounded-xl border border-dark-border/60">
+              "${escapeHtml(lastMsg)}"
+            </p>
+
+            <div class="flex items-center space-x-3 pt-1">
+              <button onclick="enterChat('${recent.id}')" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-brand-600/40 flex items-center space-x-2 transition transform active:scale-95">
+                <i class="ph-bold ph-play text-base"></i>
+                <span>เล่นต่อทันที</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      characters.forEach(char => {
+        const card = document.createElement('div');
+        card.className = "bg-dark-card border border-dark-border hover:border-brand-500/50 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition duration-300 flex flex-col group";
+        
+        card.innerHTML = `
+          <div class="relative h-44 w-full overflow-hidden bg-dark-surface cursor-pointer" onclick="enterChat('${char.id}')">
+            <img src="${char.avatar}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+            <div class="absolute inset-0 bg-gradient-to-t from-dark-card via-transparent"></div>
+            <div class="absolute top-3 right-3 flex space-x-1">
+              <button onclick="event.stopPropagation(); deleteCharacter('${char.id}')" class="w-8 h-8 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center justify-center transition" title="ลบ">
+                <i class="ph-bold ph-trash text-sm"></i>
+              </button>
+            </div>
+            <div class="absolute bottom-3 left-4 right-4">
+              <h3 class="text-xl font-bold text-white drop-shadow">${escapeHtml(char.name)}</h3>
+              <p class="text-xs text-brand-300 font-medium truncate">${escapeHtml(char.role || 'ตัวละคร')}</p>
+            </div>
+          </div>
+
+          <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+            <div class="space-y-1.5">
+              <div class="text-[11px] text-purple-300">สวมบทบาทเป็น: <b>${escapeHtml(char.userName || 'ผู้เล่น')}</b></div>
+              <p class="text-xs text-slate-300 line-clamp-2 italic bg-dark-surface/60 p-2.5 rounded-lg border border-dark-border/40">
+                "${escapeHtml(char.messages && char.messages.length > 0 ? char.messages[char.messages.length - 1].text : char.firstMessage)}"
+              </p>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-dark-border/60">
+              <button onclick="enterChat('${char.id}')" class="w-full py-2 rounded-xl bg-dark-surface hover:bg-brand-600 text-brand-300 hover:text-white border border-dark-border hover:border-brand-600 text-xs font-semibold flex items-center justify-center space-x-1.5 transition">
+                <span>เข้าห้องแชต</span>
+                <i class="ph-bold ph-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function deleteCharacter(id) {
+      if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบตัวละครนี้?')) {
+        characters = characters.filter(c => c.id !== id);
+        saveCharacters();
+      }
+    }
+
+    function enterChat(id) {
+      const char = characters.find(c => c.id === id);
+      if (!char) return;
+
+      currentCharacterId = id;
+      char.updatedAt = Date.now();
+
+      if (char.messages && char.messages.length > 0) {
+        char.messages = char.messages.filter(m => !m.text.includes('สะดุดเล็กน้อย') && !m.text.includes('เกิดข้อผิดพลาด'));
+        if (char.messages.length === 0) {
+          char.messages = [{ sender: 'char', text: char.firstMessage || '*ทักทายคุณด้วยความเงียบสงบ*' }];
+        }
+      }
+      saveCharacters();
+
+      document.getElementById('sideCharAvatar').src = char.avatar;
+      document.getElementById('sideCharName').textContent = char.name;
+      document.getElementById('sideCharRole').textContent = `${char.role || 'Character'} (${char.gender || 'ไม่ระบุ'}, ${char.age || '-'}, ${char.job || '-'})`;
+      document.getElementById('sideCharPersonality').textContent = char.personality || '-';
+      
+      document.getElementById('sideUserName').textContent = char.userName || 'ผู้เล่น';
+      document.getElementById('sideUserRole').textContent = char.userRole || 'คนรู้จัก';
+
+      document.getElementById('chatHeaderAvatar').src = char.avatar;
+      document.getElementById('chatHeaderName').textContent = char.name;
+      document.getElementById('chatHeaderSubtitle').textContent = `คุณเล่นเป็น: ${char.userName || 'ผู้เล่น'}`;
+
+      renderChatMessages();
+
+      document.getElementById('lobbyScreen').classList.add('hidden');
+      document.getElementById('chatScreen').classList.remove('hidden');
+
+      setTimeout(() => {
+        const container = document.getElementById('messagesContainer');
+        container.scrollTop = container.scrollHeight;
+        document.getElementById('messageInput').focus();
+      }, 50);
+    }
+
+    function backToLobby() {
+      document.getElementById('chatScreen').classList.add('hidden');
+      document.getElementById('lobbyScreen').classList.remove('hidden');
+      currentCharacterId = null;
+      renderLobby();
+    }
+
+    function renderChatMessages() {
+      const char = getCurrentChar();
+      if (!char) return;
+
+      const container = document.getElementById('messagesContainer');
+      container.innerHTML = '';
+
+      char.messages.forEach(msg => {
+        const isUser = msg.sender === 'user';
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1 max-w-3xl ${isUser ? 'ml-auto' : 'mr-auto'}`;
+
+        const senderTag = document.createElement('div');
+        senderTag.className = `text-[11px] font-semibold px-2 ${isUser ? 'text-indigo-400' : 'text-purple-400'}`;
+        senderTag.textContent = isUser ? (char.userName || 'คุณ') : char.name;
+
+        const bubble = document.createElement('div');
+        bubble.className = isUser 
+          ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-2xl rounded-tr-none px-5 py-3.5 shadow-lg border border-brand-500/30'
+          : 'bg-dark-surface border border-dark-border text-slate-100 rounded-2xl rounded-tl-none px-5 py-3.5 shadow-xl';
+
+        bubble.innerHTML = formatRoleplayText(msg.text);
+
+        msgDiv.appendChild(senderTag);
+        msgDiv.appendChild(bubble);
+        container.appendChild(msgDiv);
+      });
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function formatRoleplayText(rawText) {
+      if (!rawText) return '';
+      let escaped = escapeHtml(rawText);
+      return escaped.replace(/\*(.*?)\*/g, '<span class="rp-action">*$1*</span>');
+    }
+
+    async function handleSendMessage(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const char = getCurrentChar();
+      if (!char) return;
+
+      char.messages.push({ sender: 'user', text: text });
+      char.updatedAt = Date.now();
+      input.value = '';
+      renderChatMessages();
+
+      showTyping(true, `${char.name} กำลังคิดและตอบสนอง...`);
+
+      try {
+        const aiReplyText = await fetchOllamaChat(char, text);
+
+        char.messages.push({ sender: 'char', text: aiReplyText });
+        char.updatedAt = Date.now();
+        saveCharacters();
+      } catch (err) {
+        console.error(err);
+        char.messages.push({ 
+          sender: 'char', 
+          text: `*สะดุดเล็กน้อยพลางส่ายหัวเบาๆ* (${err.message || 'ไม่สามารถเชื่อมต่อกับ Ollama ในเครื่องได้ กรุณาตรวจสอบว่าเปิดโปรแกรมอยู่'})` 
+        });
+      } finally {
+        showTyping(false);
+        renderChatMessages();
+      }
+    }
+
+    function showTyping(show, text = '') {
+      const el = document.getElementById('typingIndicator');
+      const txt = document.getElementById('typingText');
+      if (show) {
+        txt.textContent = text;
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+      const container = document.getElementById('messagesContainer');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function insertAsterisks() {
+      const input = document.getElementById('messageInput');
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const val = input.value;
+      input.value = val.substring(0, start) + '**' + val.substring(end);
+      input.selectionStart = input.selectionEnd = start + 1;
+      input.focus();
+    }
+
+    function clearChatHistory() {
+      const char = getCurrentChar();
+      if (!char) return;
+      if (confirm(`คุณต้องการล้างประวัติการคุยทั้งหมดกับ ${char.name} ใช่หรือไม่?`)) {
+        char.messages = [{ sender: 'char', text: char.firstMessage || '*ยืนมองคุณอย่างเงียบสงบ*' }];
+        saveCharacters();
+        renderChatMessages();
+      }
+    }
+
+    function getCurrentChar() {
+      return characters.find(c => c.id === currentCharacterId);
+    }
+
+    // ==========================================
+    // LOCAL OLLAMA CHAT API
+    // ==========================================
+    async function fetchOllamaChat(char, userLatestMsg) {
+      const systemPrompt = `
+You are an expert creative roleplay partner. You are roleplaying as "${char.name}".
+Stay 100% in character at all times.
+
+CHARACTER PROFILE:
+- Name: ${char.name}
+- Gender: ${char.gender || 'Not specified'}
+- Age: ${char.age || 'Not specified'}
+- Occupation: ${char.job || 'Not specified'}
+- Concept/Role: ${char.role || 'Character'}
+- Personality & Background:
+${char.personality || 'Engaging roleplay character.'}
+
+USER PROFILE (THE PERSON TALKING TO YOU):
+- Name: ${char.userName || 'ผู้เล่น'}
+- Gender: ${char.userGender || 'Not specified'}
+- Age: ${char.userAge || 'Not specified'}
+- Occupation: ${char.userJob || 'Not specified'}
+- Relationship Dynamic: ${char.userRole || 'Friend'}
+
+ROLEPLAY RULES:
+1. Always reply in fluent, natural Thai.
+2. Put actions, movements, facial expressions, and inner feelings in asterisks *like this*.
+3. Read the conversation history carefully. Directly acknowledge what ${char.userName} just said or asked.
+4. Advance the scene naturally. Keep dialogue lively, emotional, and authentic.
+      `.trim();
+
+      const recentHistory = char.messages
+        .filter(m => !m.text.includes('สะดุดเล็กน้อย') && !m.text.includes('เกิดข้อผิดพลาด'))
+        .slice(-10);
+
+      const messagesPayload = [
+        { role: 'system', content: systemPrompt },
+        ...recentHistory.map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text
+        }))
+      ];
+
+      const response = await fetch(`${ollamaHost}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: messagesPayload,
+          stream: false,
+          options: {
+            temperature: 0.85,
+            top_p: 0.95
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama ตอบกลับผิดพลาด (HTTP ${response.status})`);
+      }
+
+      const data = await response.json();
+      return data.message?.content?.trim() || '*พยักหน้ารับอย่างเงียบๆ*';
+    }
+
+    // ==========================================
+    // WIZARD FUNCTIONS
+    // ==========================================
+    function openWizardModal() {
+      currentWizardStep = 1;
+      selectedWizardAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500';
+      document.getElementById('wizardPreviewImg').src = selectedWizardAvatar;
+      document.getElementById('customAvatarUrlInput').value = '';
+      document.getElementById('imagePromptInput').value = '';
+      
+      document.getElementById('charNameInput').value = '';
+      document.getElementById('charRoleInput').value = '';
+      document.getElementById('charGenderInput').value = 'หญิง';
+      document.getElementById('charAgeInput').value = '20 ปี';
+      document.getElementById('charJobInput').value = 'นักศึกษา';
+      document.getElementById('charPersonalityInput').value = '';
+      document.getElementById('charFirstMsgInput').value = '';
+
+      document.getElementById('userPersonaNameInput').value = 'ผู้เล่น';
+      document.getElementById('userGenderInput').value = 'ชาย';
+      document.getElementById('userAgeInput').value = '21 ปี';
+      document.getElementById('userJobInput').value = 'นักศึกษา';
+      document.getElementById('userPersonaRoleInput').value = 'เพื่อนสนิทสมัยเด็กที่รู้ความลับของกันและกัน';
+
+      updateWizardStepUI();
+      document.getElementById('wizardModal').classList.remove('hidden');
+    }
+
+    function closeWizardModal() {
+      document.getElementById('wizardModal').classList.add('hidden');
+    }
+
+    function updateWizardStepUI() {
+      document.getElementById('wizardStep1').classList.toggle('hidden', currentWizardStep !== 1);
+      document.getElementById('wizardStep2').classList.toggle('hidden', currentWizardStep !== 2);
+      document.getElementById('wizardStep3').classList.toggle('hidden', currentWizardStep !== 3);
+
+      document.getElementById('wizardPrevBtn').classList.toggle('hidden', currentWizardStep === 1);
+
+      const nextBtnText = document.getElementById('nextBtnText');
+      const subTitle = document.getElementById('stepSubTitle');
+
+      if (currentWizardStep === 1) {
+        subTitle.textContent = 'สเต็ป 1 จาก 3: ข้อมูลตัวละคร AI';
+        nextBtnText.textContent = 'ถัดไป: ใส่บทบาทของคุณ';
+      } else if (currentWizardStep === 2) {
+        subTitle.textContent = 'สเต็ป 2 จาก 3: กำหนดตัวตนและบทบาทของคุณ';
+        nextBtnText.textContent = 'ถัดไป: เลือกหรือสร้างภาพ AI';
+      } else if (currentWizardStep === 3) {
+        subTitle.textContent = 'สเต็ป 3 จาก 3: สร้างหรือเลือกรูปภาพตัวละคร';
+        nextBtnText.textContent = '✓ เริ่มคุยกับตัวละครทันที';
+      }
+
+      updateTabStyle('stepTab1', currentWizardStep === 1, currentWizardStep > 1);
+      updateTabStyle('stepTab2', currentWizardStep === 2, currentWizardStep > 2);
+      updateTabStyle('stepTab3', currentWizardStep === 3, false);
+    }
+
+    function updateTabStyle(id, isActive, isDone) {
+      const tab = document.getElementById(id);
+      if (isActive) {
+        tab.className = "py-2.5 border-b-2 border-brand-500 text-brand-300 font-bold flex items-center justify-center space-x-1.5 transition";
+      } else if (isDone) {
+        tab.className = "py-2.5 border-b-2 border-emerald-500 text-emerald-400 flex items-center justify-center space-x-1.5 transition";
+      } else {
+        tab.className = "py-2.5 border-b-2 border-transparent text-dark-muted flex items-center justify-center space-x-1.5 transition";
+      }
+    }
+
+    function nextWizardStep() {
+      if (currentWizardStep === 1) {
+        const name = document.getElementById('charNameInput').value.trim();
+        if (!name) {
+          alert('กรุณาใส่ชื่อตัวละคร AI ด้วยครับ');
+          document.getElementById('charNameInput').focus();
+          return;
+        }
+        currentWizardStep = 2;
+        updateWizardStepUI();
+      } else if (currentWizardStep === 2) {
+        const userName = document.getElementById('userPersonaNameInput').value.trim();
+        if (!userName) {
+          alert('กรุณาใส่ชื่อของคุณด้วยครับ');
+          document.getElementById('userPersonaNameInput').focus();
+          return;
+        }
+        currentWizardStep = 3;
+        updateWizardStepUI();
+      } else if (currentWizardStep === 3) {
+        finalizeCharacterCreation();
+      }
+    }
+
+    function prevWizardStep() {
+      if (currentWizardStep > 1) {
+        currentWizardStep--;
+        updateWizardStepUI();
+      }
+    }
+
+    function randomAiBotComplete() {
+      const botPresets = [
+        {
+          name: 'ไอริส (Iris)',
+          role: 'สาวข้างบ้านปากร้ายใจดี',
+          gender: 'หญิง',
+          age: '20 ปี',
+          job: 'นักศึกษาคณะสถาปัตย์',
+          personality: 'ซึนเดเระ ปากร้ายแต่ใจดีมาก คอยแอบเป็นห่วงตลอดเวลา แอบชอบคุณมาตั้งแต่เด็กแต่ชอบทำเป็นดุแก้เขิน',
+          firstMsg: '*ยืนกอดอกพิงประตูห้องแล้วจ้องหน้าคุณอย่างไม่พอใจ* กว่าจะกลับมาได้นะ... ไปเถลไถลที่ไหนมาล่ะ? ฉันแค่บังเอิญทำแกงกะหรี่เหลือเลยเอามาให้เฉยๆ ต่างหาก!',
+          prompt: 'beautiful korean girl wearing round glasses, soft wavy brown hair with cute pink ribbon, delicate necklace, sweet gentle gaze'
+        },
+        {
+          name: 'เจสเตอร์ (Jester)',
+          role: 'รุ่นพี่หนุ่มสุดกวนแต่พึ่งพาได้',
+          gender: 'ชาย',
+          age: '23 ปี',
+          job: 'ประธานชมรมดนตรี',
+          personality: 'ขี้แกล้ง กวนประสาท ชอบแหย่ให้คุณหน้าแดง แต่เวลาเกิดเรื่องจะจริงจังและคอยปกป้องคุณเสมอ',
+          firstMsg: '*ชะโงกหน้าเข้ามาใกล้จนเกือบชนจมูกคุณแล้วยิ้มกวนๆ* ไงเด็กดี... วันนี้ทำหน้าบึ้งแต่เช้าเลยนะ คิดถึงพี่จนทนไม่ไหวเหรอ?',
+          prompt: 'handsome manhwa male lead, messy dark hair, sharp jawline, wearing casual denim shirt, subtle smirk, romantic novel art'
+        }
+      ];
+
+      const p = botPresets[Math.floor(Math.random() * botPresets.length)];
+      document.getElementById('charNameInput').value = p.name;
+      document.getElementById('charRoleInput').value = p.role;
+      document.getElementById('charGenderInput').value = p.gender;
+      document.getElementById('charAgeInput').value = p.age;
+      document.getElementById('charJobInput').value = p.job;
+      document.getElementById('charPersonalityInput').value = p.personality;
+      document.getElementById('charFirstMsgInput').value = p.firstMsg;
+      document.getElementById('imagePromptInput').value = p.prompt;
+    }
+
+    function randomUserPersonaComplete() {
+      const userPresets = [
+        {
+          name: 'เรย์',
+          gender: 'ชาย',
+          age: '21 ปี',
+          job: 'นักศึกษาปี 3',
+          role: 'เพื่อนสนิทข้างบ้านที่โตมาด้วยกันตั้งแต่จำความได้'
+        },
+        {
+          name: 'พี่ดิน',
+          gender: 'ชาย',
+          age: '25 ปี',
+          job: 'สถาปนิกหนุ่ม',
+          role: 'รุ่นพี่ที่คอยดูแลและเป็นที่พักพิงให้เสมอ'
+        }
+      ];
+
+      const p = userPresets[Math.floor(Math.random() * userPresets.length)];
+      document.getElementById('userPersonaNameInput').value = p.name;
+      document.getElementById('userGenderInput').value = p.gender;
+      document.getElementById('userAgeInput').value = p.age;
+      document.getElementById('userJobInput').value = p.job;
+      document.getElementById('userPersonaRoleInput').value = p.role;
+    }
+
+    async function generateAiImage() {
+      const promptInput = document.getElementById('imagePromptInput');
+      let prompt = promptInput.value.trim();
+      if (!prompt) {
+        alert('กรุณาพิมพ์ข้อความบรรยายรูปภาพครับ');
+        return;
+      }
+
+      const overlay = document.getElementById('imgLoadingOverlay');
+      const statusText = document.getElementById('loadingStatusText');
+      overlay.classList.remove('hidden');
+
+      try {
+        let englishPrompt = prompt;
+        const hasThai = /[ก-๙]/.test(prompt);
+
+        if (hasThai) {
+          if (statusText) statusText.textContent = 'กำลังแปลงคำบรรยายเป็นภาษาอังกฤษ...';
+          try {
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(prompt)}&langpair=th|en`);
+            const data = await res.json();
+            if (data && data.responseData && data.responseData.translatedText) {
+              englishPrompt = data.responseData.translatedText;
+            }
+          } catch (e) {}
+        }
+
+        if (statusText) statusText.textContent = 'AI กำลังวาดภาพลายเส้น Manhwa Romance...';
+
+        const styleTags = "korean manhwa webtoon style, romance novel cover art, semi-realistic digital painting, delicate porcelain skin, soft glossy lips, sparkling eyes, warm soft ambient lighting, highly detailed, trending on artstation";
+        const enhancedPrompt = encodeURIComponent(`${englishPrompt}, ${styleTags}`);
+        const seed = Math.floor(Math.random() * 100000);
+        const imageUrl = `https://image.pollinations.ai/prompt/${enhancedPrompt}?width=600&height=600&nologo=true&seed=${seed}`;
+
+        const testImg = new Image();
+        testImg.onload = () => {
+          selectedWizardAvatar = imageUrl;
+          document.getElementById('wizardPreviewImg').src = imageUrl;
+          overlay.classList.add('hidden');
+        };
+        testImg.onerror = () => {
+          overlay.classList.add('hidden');
+          alert('ไม่สามารถโหลดภาพได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
+        };
+        testImg.src = imageUrl;
+      } catch (err) {
+        overlay.classList.add('hidden');
+        alert('เกิดข้อผิดพลาดในการสร้างภาพ กรุณาลองใหม่อีกครั้ง');
+      }
+    }
+
+    function randomAiImage() {
+      const randomThemes = [
+        'หญิงสาวชาวเกาหลีใส่แว่นตากลม ผมยาวลอนสีน้ำตาลติดโบว์สีชมพู ยิ้มหวานอ่อนโยน สวมสร้อยคอรูปโบว์',
+        'พระเอกนิยายโรแมนซ์สุดหล่อ ผมสีเข้ม หน้าคมสัน สวมเสื้อเชิ้ตสีขาว แววตาอบอุ่นและมีเสน่ห์'
+      ];
+      const pick = randomThemes[Math.floor(Math.random() * randomThemes.length)];
+      document.getElementById('imagePromptInput').value = pick;
+      generateAiImage();
+    }
+
+    function updateCustomImageFromUrl(url) {
+      if (url && url.startsWith('http')) {
+        selectedWizardAvatar = url;
+        document.getElementById('wizardPreviewImg').src = url;
+      }
+    }
+
+    function finalizeCharacterCreation() {
+      const name = document.getElementById('charNameInput').value.trim() || 'ตัวละครใหม่';
+      const role = document.getElementById('charRoleInput').value.trim() || 'เพื่อนร่วมทาง';
+      const gender = document.getElementById('charGenderInput').value;
+      const age = document.getElementById('charAgeInput').value.trim() || '-';
+      const job = document.getElementById('charJobInput').value.trim() || '-';
+      const personality = document.getElementById('charPersonalityInput').value.trim() || 'เป็นมิตร อบอุ่น และใส่ใจ User';
+      const firstMsg = document.getElementById('charFirstMsgInput').value.trim() || `*หันมามองคุณแล้วส่งยิ้มบางๆ* ยินดีที่ได้เจอนะ!`;
+      
+      const userName = document.getElementById('userPersonaNameInput').value.trim() || 'ผู้เล่น';
+      const userRole = document.getElementById('userPersonaRoleInput').value.trim() || 'เพื่อนสนิท';
+
+      const newChar = {
+        id: 'char-' + Date.now(),
+        name: name,
+        role: role,
+        gender: gender,
+        age: age,
+        job: job,
+        avatar: selectedWizardAvatar,
+        personality: personality,
+        firstMessage: firstMsg,
+        userName: userName,
+        userRole: userRole,
+        messages: [{ sender: 'char', text: firstMsg }],
+        updatedAt: Date.now()
+      };
+
+      characters.unshift(newChar);
+      saveCharacters();
+      closeWizardModal();
+      enterChat(newChar.id);
+    }
+
+    function openSettingsModal() {
+      document.getElementById('ollamaHostInput').value = ollamaHost;
+      document.getElementById('ollamaModelInput').value = ollamaModel;
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function saveOllamaSettings() {
+      ollamaHost = document.getElementById('ollamaHostInput').value.trim() || 'http://localhost:11434';
+      ollamaModel = document.getElementById('ollamaModelInput').value.trim() || 'llama3.1:8b';
+      localStorage.setItem('dream_ollama_host', ollamaHost);
+      localStorage.setItem('dream_ollama_model', ollamaModel);
+      testOllamaConnection(false);
+      closeSettingsModal();
+      alert('บันทึกการตั้งค่าเรียบร้อยแล้ว!');
+    }
+
+    document.getElementById('messageInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage();
+      }
+    });
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
