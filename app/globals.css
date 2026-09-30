@@ -1106,6 +1106,41 @@ label.profile-h {
   color: var(--dusk);
   font-size: 14px;
 }
+.mode-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mode-pick button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--seam);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mode-pick button > svg {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.mode-pick button > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mode-pick button[aria-checked='true'] {
+  border-color: var(--candle);
+  background: color-mix(in srgb, var(--candle) 8%, transparent);
+}
+.mode-pick button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .ai-box {
   display: flex;
   flex-direction: column;

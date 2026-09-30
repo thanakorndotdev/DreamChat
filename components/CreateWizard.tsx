@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, MagicWand, Shuffle, Sparkle, Stop, Trash, UploadSimple } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, Check, MagicWand, PencilSimple, Shuffle, Sparkle, Stop, Trash, UploadSimple } from '@phosphor-icons/react';
 import Modal from './Modal';
 import { BOT_PRESETS, DEFAULT_AVATAR, IMAGE_THEMES, USER_PRESETS, pickNew } from '@/lib/presets';
 import { ageNumber } from '@/lib/age';
@@ -56,6 +56,8 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageState, setImageState] = useState<{ busy: boolean; text?: string; error?: string }>({ busy: false });
 
+  // Writing the character by hand is the default; the AI builder only shows when picked.
+  const [mode, setMode] = useState<'manual' | 'ai'>('manual');
   const [outline, setOutline] = useState('');
   const [aiState, setAiState] = useState<{ busy: boolean; chars?: number; error?: string }>({ busy: false });
   const aiAbort = useRef<AbortController | null>(null);
@@ -221,36 +223,55 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
     >
       {step === 0 && (
         <div className="form">
-          <div className="ai-box">
-            <Field label="มีโครงเรื่องคร่าวๆ ไหม? ให้ AI คิดต่อให้" hint="เว้นว่างไว้ ให้ AI คิดเองทั้งหมดก็ได้ ผลลัพธ์จะลงช่องด้านล่าง แก้ต่อได้">
-              <textarea
-                rows={2}
-                value={outline}
-                onChange={(e) => setOutline(e.target.value)}
-                placeholder="เช่น หัวหน้าแก๊งมาเฟียที่ต้องแกล้งเป็นแฟนเรา / นางเงือกที่ขึ้นบกมาตามหาคนช่วยชีวิต"
-                disabled={aiState.busy}
-              />
-            </Field>
-            <div className="row">
-              {aiState.busy ? (
-                <>
-                  <button type="button" className="btn btn-soft" onClick={() => aiAbort.current?.abort()}>
-                    <Stop size={16} weight="fill" /> หยุด
+          <div className="mode-pick" role="radiogroup" aria-label="วิธีสร้างตัวละคร">
+            <button type="button" role="radio" aria-checked={mode === 'manual'} disabled={aiState.busy} onClick={() => setMode('manual')}>
+              <PencilSimple size={18} />
+              <span>
+                <span className="toggle-title">สร้างเอง</span>
+                <span className="help">กรอกรายละเอียดตัวละครด้วยตัวเอง</span>
+              </span>
+            </button>
+            <button type="button" role="radio" aria-checked={mode === 'ai'} onClick={() => setMode('ai')}>
+              <MagicWand size={18} />
+              <span>
+                <span className="toggle-title">ให้ AI ช่วยคิด</span>
+                <span className="help">AI เขียนให้ แล้วแก้ต่อได้</span>
+              </span>
+            </button>
+          </div>
+
+          {mode === 'ai' && (
+            <div className="ai-box">
+              <Field label="มีโครงเรื่องคร่าวๆ ไหม? ให้ AI คิดต่อให้" hint="เว้นว่างไว้ ให้ AI คิดเองทั้งหมดก็ได้ ผลลัพธ์จะลงช่องด้านล่าง แก้ต่อได้">
+                <textarea
+                  rows={2}
+                  value={outline}
+                  onChange={(e) => setOutline(e.target.value)}
+                  placeholder="เช่น หัวหน้าแก๊งมาเฟียที่ต้องแกล้งเป็นแฟนเรา / นางเงือกที่ขึ้นบกมาตามหาคนช่วยชีวิต"
+                  disabled={aiState.busy}
+                />
+              </Field>
+              <div className="row">
+                {aiState.busy ? (
+                  <>
+                    <button type="button" className="btn btn-soft" onClick={() => aiAbort.current?.abort()}>
+                      <Stop size={16} weight="fill" /> หยุด
+                    </button>
+                    <span className="help ai-progress">AI กำลังคิดเนื้อเรื่อง… {aiState.chars ? `${aiState.chars} ตัวอักษร` : ''}</span>
+                  </>
+                ) : (
+                  <button type="button" className="btn btn-primary" onClick={aiGenerate}>
+                    <MagicWand size={16} /> ให้ AI สร้างตัวละคร
                   </button>
-                  <span className="help ai-progress">AI กำลังคิดเนื้อเรื่อง… {aiState.chars ? `${aiState.chars} ตัวอักษร` : ''}</span>
-                </>
-              ) : (
-                <button type="button" className="btn btn-primary" onClick={aiGenerate}>
-                  <MagicWand size={16} /> ให้ AI สร้างตัวละคร
-                </button>
+                )}
+              </div>
+              {aiState.error && (
+                <p className="form-error" role="alert">
+                  {aiState.error}
+                </p>
               )}
             </div>
-            {aiState.error && (
-              <p className="form-error" role="alert">
-                {aiState.error}
-              </p>
-            )}
-          </div>
+          )}
 
           <div className="form-lead">
             <p>ตัวละครที่ AI จะสวมบทบาท</p>

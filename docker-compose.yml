@@ -22,6 +22,9 @@ services:
     container_name: dreamchat-cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
     depends_on:
