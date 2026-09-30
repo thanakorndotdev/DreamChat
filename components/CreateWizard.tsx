@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, MagicWand, Shuffle, Sparkle, Stop, UploadSimple } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, Check, MagicWand, Shuffle, Sparkle, Stop, Trash, UploadSimple } from '@phosphor-icons/react';
 import Modal from './Modal';
 import { BOT_PRESETS, DEFAULT_AVATAR, IMAGE_THEMES, USER_PRESETS, pickNew } from '@/lib/presets';
 import { ageNumber } from '@/lib/age';
@@ -59,6 +59,8 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
   const [outline, setOutline] = useState('');
   const [aiState, setAiState] = useState<{ busy: boolean; chars?: number; error?: string }>({ busy: false });
   const aiAbort = useRef<AbortController | null>(null);
+  // Bumped by every image action so a slow earlier one can't overwrite a newer choice.
+  const imageJob = useRef(0);
   const last = useRef<{ bot?: (typeof BOT_PRESETS)[number]; user?: (typeof USER_PRESETS)[number]; theme?: string }>({});
 
   const set = (key: Exclude<keyof typeof EMPTY, 'adult'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -107,11 +109,15 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
+    const job = ++imageJob.current;
     setImageState({ busy: true, text: 'กำลังย่อรูป…' });
     try {
-      setAvatar(await fileToAvatar(file));
+      const url = await fileToAvatar(file);
+      if (job !== imageJob.current) return;
+      setAvatar(url);
       setImageState({ busy: false });
     } catch (err) {
+      if (job !== imageJob.current) return;
       setImageState({ busy: false, error: err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ' });
     }
   };
@@ -121,18 +127,30 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
       setImageState({ busy: false, error: 'พิมพ์คำบรรยายภาพก่อน' });
       return;
     }
+    const job = ++imageJob.current;
     setImageState({ busy: true, text: 'กำลังแปลคำบรรยาย…' });
     const english = await toEnglish(prompt.trim());
+    if (job !== imageJob.current) return;
     setImageState({ busy: true, text: 'กำลังวาดภาพ อาจใช้เวลาสักครู่…' });
     const seed = Math.floor(Math.random() * 100000);
     const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(`${english}, ${STYLE_TAGS}`)}?width=600&height=800&nologo=true&seed=${seed}`;
     const img = new Image();
     img.onload = () => {
+      if (job !== imageJob.current) return;
       setAvatar(url);
       setImageState({ busy: false });
     };
-    img.onerror = () => setImageState({ busy: false, error: 'โหลดภาพไม่สำเร็จ ลองกดสร้างภาพอีกครั้ง' });
+    img.onerror = () => {
+      if (job !== imageJob.current) return;
+      setImageState({ busy: false, error: 'โหลดภาพไม่สำเร็จ ลองกดสร้างภาพอีกครั้ง' });
+    };
     img.src = url;
+  };
+
+  const removeImage = () => {
+    imageJob.current++;
+    setAvatar(DEFAULT_AVATAR);
+    setImageState({ busy: false });
   };
 
   const next = () => {
@@ -362,6 +380,11 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
                   }}
                 />
               </label>
+              {(avatar !== DEFAULT_AVATAR || imageState.busy) && (
+                <button type="button" className="btn btn-ghost" onClick={removeImage}>
+                  <Trash size={16} /> {imageState.busy ? 'ยกเลิก' : 'ลบรูป'}
+                </button>
+              )}
             </div>
             {imageState.error && (
               <p className="form-error" role="alert">
@@ -372,7 +395,12 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
               <input
                 type="url"
                 placeholder="https://…"
-                onChange={(e) => e.target.value.startsWith('http') && setAvatar(e.target.value)}
+                onChange={(e) => {
+                  if (!e.target.value.startsWith('http')) return;
+                  imageJob.current++;
+                  setAvatar(e.target.value);
+                  setImageState({ busy: false });
+                }}
               />
             </Field>
           </div>

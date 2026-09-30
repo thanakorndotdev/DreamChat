@@ -14,13 +14,17 @@ type Props = {
 
 export default function Modal({ title, subtitle, onClose, footer, children, wide }: Props) {
   const panel = useRef<HTMLDivElement>(null);
+  // Callers pass inline handlers, so keep the latest one in a ref; otherwise the
+  // effect below re-runs on every keystroke and yanks focus back to the first field.
+  const close = useRef(onClose);
+  close.current = onClose;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close.current();
     window.addEventListener('keydown', onKey);
     panel.current?.querySelector<HTMLElement>('input, textarea, select, button:not(.modal-close)')?.focus();
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="modal-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
