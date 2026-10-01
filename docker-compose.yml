@@ -12,6 +12,7 @@ services:
       - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - CLOUDFLARE_MODEL=${CLOUDFLARE_MODEL:-}
+      - CLOUDFLARE_FALLBACK_MODEL=${CLOUDFLARE_FALLBACK_MODEL:-}
     ports:
       - "100.84.226.15:3200:3000"  # tailnet only, for testing without the tunnel
     volumes:
