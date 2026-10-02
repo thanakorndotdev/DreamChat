@@ -1,8 +1,15 @@
 import Link from 'next/link';
 
-/** Who runs the service, from env so the published pages name the real operator. */
-export const OPERATOR = process.env.LEGAL_OPERATOR_NAME?.trim() || '(ยังไม่ได้ระบุชื่อผู้ให้บริการ)';
-export const CONTACT = process.env.LEGAL_CONTACT_EMAIL?.trim() || '(ยังไม่ได้ระบุอีเมลติดต่อ)';
+/**
+ * Who runs the service, from env so the published pages name the real operator. Read per request
+ * (the pages call connection() first), so setting the env on the server is enough; no rebuild.
+ */
+export function legalInfo() {
+  return {
+    operator: process.env.LEGAL_OPERATOR_NAME?.trim() || '(ยังไม่ได้ระบุชื่อผู้ให้บริการ)',
+    contact: process.env.LEGAL_CONTACT_EMAIL?.trim() || '(ยังไม่ได้ระบุอีเมลติดต่อ)',
+  };
+}
 
 export default function LegalPage({ title, updated, children }: { title: string; updated: string; children: React.ReactNode }) {
   return (

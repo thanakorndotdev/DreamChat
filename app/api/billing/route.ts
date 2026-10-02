@@ -1,11 +1,12 @@
 import { requireMember } from '@/lib/server/auth';
-import { effectivePlan, getSubscription, isLive, listPlans, usageToday } from '@/lib/server/billing';
+import type { Plan } from '@/lib/plans';
+import { type Subscription, effectivePlan, getSubscription, isLive, listPlans, usageToday } from '@/lib/server/billing';
 import { stripeConfigured } from '@/lib/server/stripe';
 
 export type BillingState = {
-  plans: ReturnType<typeof listPlans>;
-  plan: ReturnType<typeof effectivePlan>;
-  subscription: (NonNullable<ReturnType<typeof getSubscription>> & { live: boolean }) | null;
+  plans: Plan[];
+  plan: Plan;
+  subscription: (Subscription & { live: boolean }) | null;
   usage: { chat: number };
   payments: boolean;
 };
@@ -14,12 +15,12 @@ export type BillingState = {
 export async function GET() {
   const user = await requireMember();
   if (user instanceof Response) return user;
-  const sub = getSubscription(user.id);
+  const sub = await getSubscription(user.id);
   const state: BillingState = {
-    plans: listPlans().filter((p) => p.active),
-    plan: effectivePlan(user.id),
+    plans: (await listPlans()).filter((p) => p.active),
+    plan: await effectivePlan(user.id),
     subscription: sub ? { ...sub, live: isLive(sub) } : null,
-    usage: { chat: usageToday(user.id).chat },
+    usage: { chat: (await usageToday(user.id)).chat },
     payments: stripeConfigured(),
   };
   return Response.json(state);

@@ -9,14 +9,15 @@ import { getSetting } from './server/settings';
 // Small, non-reasoning, ~7x fewer neurons per reply than SEA-LION 27B.
 export const DEFAULT_CF_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 
-export type WorkersAi = { account: string; token: string; model: string };
+export type WorkersAi = { account: string; token: string; model: string; fallback: string };
 
-export function workersAi(): WorkersAi | null {
+export async function workersAi(): Promise<WorkersAi | null> {
   // Values saved on the admin page win over env.
-  const account = getSetting('cf_account_id') || process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const token = getSetting('cf_api_token') || process.env.CLOUDFLARE_API_TOKEN?.trim();
+  const account = (await getSetting('cf_account_id')) || process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const token = (await getSetting('cf_api_token')) || process.env.CLOUDFLARE_API_TOKEN?.trim();
   if (!account || !token) return null;
-  return { account, token, model: getSetting('cf_model') || process.env.CLOUDFLARE_MODEL?.trim() || DEFAULT_CF_MODEL };
+  const fallback = (await getSetting('cf_fallback_model')) || process.env.CLOUDFLARE_FALLBACK_MODEL?.trim() || DEFAULT_CF_MODEL;
+  return { account, token, model: (await getSetting('cf_model')) || process.env.CLOUDFLARE_MODEL?.trim() || DEFAULT_CF_MODEL, fallback };
 }
 
 /** Ollama model names (e.g. llama3.1:8b) mean nothing here, so fall back to the configured model. */
@@ -47,9 +48,8 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /** Model to fall back to when the chosen one keeps failing (partner-hosted models like Gemma 4 run out of capacity). */
-function fallbackModel(model: string): string | null {
-  const fallback = getSetting('cf_fallback_model') || process.env.CLOUDFLARE_FALLBACK_MODEL?.trim() || DEFAULT_CF_MODEL;
-  return fallback === 'none' || fallback === model ? null : fallback;
+function fallbackModel(cf: WorkersAi, model: string): string | null {
+  return cf.fallback === 'none' || cf.fallback === model ? null : cf.fallback;
 }
 
 export async function workersAiChat(
@@ -70,7 +70,7 @@ export async function workersAiChat(
   });
 
   // Try the chosen model with backoff, then the fallback model once, before giving up.
-  const fallback = fallbackModel(model);
+  const fallback = fallbackModel(cf, model);
   const attempts = [...[0, ...RETRY_DELAYS_MS].map((delay) => ({ model, delay })), ...(fallback ? [{ model: fallback, delay: 0 }] : [])];
 
   let res: Response | null = null;

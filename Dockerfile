@@ -23,8 +23,11 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Accounts and chat history (SQLite). Mount a volume here so it survives rebuilds.
-ENV DATA_DIR=/app/data
+# One-off SQLite → Postgres copy: docker compose exec app node scripts/sqlite-to-postgres.mjs /app/data/dreamchat.db
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+# The app bundles its own copy of the driver; the script needs a plain one (it has no dependencies).
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/postgres ./node_modules/postgres
+# Where the old SQLite file is mounted for that copy.
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 
 USER nextjs

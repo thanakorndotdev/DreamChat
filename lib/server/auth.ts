@@ -2,7 +2,7 @@ import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'no
 import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
 import { CONSENT_VERSION } from '../legal';
-import { getDb } from './db';
+import { db } from './db';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
@@ -45,9 +45,9 @@ function isHttps(req: Request) {
 export async function startSession(req: Request, userId: number) {
   const token = randomBytes(32).toString('base64url');
   const expires = Date.now() + SESSION_DAYS * 86_400_000;
-  const db = getDb();
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
-  db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(sha256(token), userId, expires);
+  const sql = await db();
+  await sql`DELETE FROM sessions WHERE expires_at < ${Date.now()}`;
+  await sql`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (${sha256(token)}, ${userId}, ${expires})`;
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -60,28 +60,26 @@ export async function startSession(req: Request, userId: number) {
 export async function endSession() {
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
-  if (token) getDb().prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
+  if (token) {
+    const sql = await db();
+    await sql`DELETE FROM sessions WHERE token_hash = ${sha256(token)}`;
+  }
   store.delete(COOKIE);
 }
 
 export async function currentUser(): Promise<User | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
-  const row = getDb()
-    .prepare(
-      `SELECT users.id AS id, users.username AS username, users.is_admin AS is_admin,
-         users.email AS email, users.phone AS phone, users.consent_version AS consent_version FROM sessions
-       JOIN users ON users.id = sessions.user_id
-       WHERE sessions.token_hash = ? AND sessions.expires_at > ?`,
-    )
-    .get(sha256(token), Date.now()) as
-    | { id: number; username: string; is_admin: number; email: string | null; phone: string | null; consent_version: number }
-    | undefined;
+  const sql = await db();
+  const [row] = await sql<{ id: number; username: string; is_admin: boolean; email: string | null; phone: string | null; consent_version: number }[]>`
+    SELECT users.id, users.username, users.is_admin, users.email, users.phone, users.consent_version
+    FROM sessions JOIN users ON users.id = sessions.user_id
+    WHERE sessions.token_hash = ${sha256(token)} AND sessions.expires_at > ${Date.now()}`;
   return row
     ? {
         id: row.id,
         username: row.username,
-        isAdmin: !!row.is_admin || envAdmin(row.username),
+        isAdmin: row.is_admin || envAdmin(row.username),
         email: row.email,
         phone: row.phone,
         consentVersion: row.consent_version,

@@ -1,6 +1,6 @@
 import { CONSENT_VERSION, EMAIL_RULE, normalizePhone } from '@/lib/legal';
 import { PASSWORD_MIN, USERNAME_RULE, hashPassword, startSession } from '@/lib/server/auth';
-import { getDb } from '@/lib/server/db';
+import { db } from '@/lib/server/db';
 
 export async function POST(req: Request) {
   const { username, password, email, phone, consent, marketing } = await req.json().catch(() => ({}));
@@ -17,23 +17,21 @@ export async function POST(req: Request) {
   if (!tel) return new Response('เบอร์โทรไม่ถูกต้อง ใช้เบอร์ไทย เช่น 0812345678', { status: 400 });
   if (consent !== true) return new Response('ต้องยอมรับนโยบายความเป็นส่วนตัวและข้อกำหนดการใช้งานก่อนสมัคร', { status: 400 });
 
-  const db = getDb();
-  if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(name)) {
-    return new Response('ชื่อผู้ใช้นี้มีคนใช้แล้ว', { status: 409 });
-  }
-  if (db.prepare('SELECT 1 FROM users WHERE email = ? COLLATE NOCASE').get(mail)) {
+  const sql = await db();
+  const [nameTaken] = await sql`SELECT 1 FROM users WHERE username = ${name}`;
+  if (nameTaken) return new Response('ชื่อผู้ใช้นี้มีคนใช้แล้ว', { status: 409 });
+  const [mailTaken] = await sql`SELECT 1 FROM users WHERE email = ${mail}`;
+  if (mailTaken) {
     return new Response('อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบแทน', { status: 409 });
   }
   let userId: number;
   try {
     const now = Date.now();
-    const { lastInsertRowid } = db
-      .prepare(
-        `INSERT INTO users (username, password_hash, created_at, email, phone, consent_version, consent_at, marketing_consent)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(name, await hashPassword(password), now, mail, tel, CONSENT_VERSION, now, marketing === true ? 1 : 0);
-    userId = Number(lastInsertRowid);
+    const [row] = await sql<{ id: number }[]>`
+      INSERT INTO users (username, password_hash, created_at, email, phone, consent_version, consent_at, marketing_consent)
+      VALUES (${name}, ${await hashPassword(password)}, ${now}, ${mail}, ${tel}, ${CONSENT_VERSION}, ${now}, ${marketing === true})
+      RETURNING id`;
+    userId = row.id;
   } catch {
     // Lost a race with another sign-up for the same name or email.
     return new Response('ชื่อผู้ใช้หรืออีเมลนี้มีคนใช้แล้ว', { status: 409 });

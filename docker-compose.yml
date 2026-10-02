@@ -5,7 +5,11 @@ services:
     build: .
     container_name: dreamchat-app
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-longrak}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-longrak}
       # Server-side pin: the API routes ignore the Host URL typed in the browser.
       - OLLAMA_URL=http://ollama:11434
       # Set these to chat through Cloudflare Workers AI instead of Ollama.
@@ -23,7 +27,26 @@ services:
     ports:
       - "100.84.226.15:3200:3000"  # tailnet only, for testing without the tunnel
     volumes:
-      - dreamchat-data:/app/data   # accounts + chat history (SQLite)
+      # The old SQLite file, kept for the one-off copy into Postgres (scripts/sqlite-to-postgres.mjs).
+      # Safe to remove once the copy is verified.
+      - dreamchat-data:/app/data
+
+  db:
+    image: postgres:16-alpine
+    container_name: dreamchat-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-longrak}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=${POSTGRES_DB:-longrak}
+    volumes:
+      - dreamchat-pg:/var/lib/postgresql/data   # accounts, chats, catalog, billing
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # No ports: only the app reaches it, over the compose network.
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -41,3 +64,4 @@ services:
 
 volumes:
   dreamchat-data:
+  dreamchat-pg:

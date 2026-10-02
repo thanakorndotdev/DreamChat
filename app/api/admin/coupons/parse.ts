@@ -1,7 +1,7 @@
-import { getPlan } from '@/lib/server/billing';
+import { listPlans } from '@/lib/server/billing';
 
 /** Validates the admin's coupon form into column values, or returns what's wrong. */
-export function parseCoupon(b: Record<string, unknown>) {
+export async function parseCoupon(b: Record<string, unknown>) {
   const kind = b.kind;
   if (kind !== 'percent' && kind !== 'amount' && kind !== 'free_days') return 'เลือกประเภทโค้ด';
   const value = Math.floor(Number(b.value) || 0);
@@ -9,7 +9,8 @@ export function parseCoupon(b: Record<string, unknown>) {
   if (kind === 'amount' && value < 100) return 'ส่วนลดต้องอย่างน้อย ฿1';
   if (kind === 'free_days' && (value < 1 || value > 3650)) return 'จำนวนวันต้องอยู่ระหว่าง 1–3650';
 
-  const planIds = Array.isArray(b.planIds) ? b.planIds.filter((p): p is string => typeof p === 'string' && !!getPlan(p)) : [];
+  const known = new Set((await listPlans()).map((p) => p.id));
+  const planIds = Array.isArray(b.planIds) ? b.planIds.filter((p): p is string => typeof p === 'string' && known.has(p)) : [];
   if (kind === 'free_days' && planIds.length !== 1) return 'โค้ดวันฟรีต้องเลือกแพ็กเกจที่จะให้ 1 แพ็กเกจ';
 
   const max = b.maxRedemptions === null || b.maxRedemptions === '' || b.maxRedemptions === undefined ? null : Math.floor(Number(b.maxRedemptions));
@@ -20,10 +21,10 @@ export function parseCoupon(b: Record<string, unknown>) {
     kind,
     value,
     duration: b.duration === 'forever' ? 'forever' : 'once',
-    planIds: planIds.length ? JSON.stringify(planIds) : null,
+    planIds: planIds.length ? planIds : null,
     maxRedemptions: max,
     expiresAt,
-    active: b.active === false ? 0 : 1,
+    active: b.active !== false,
     note: typeof b.note === 'string' ? b.note.slice(0, 200) : '',
   } as const;
 }

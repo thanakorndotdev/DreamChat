@@ -2,7 +2,7 @@ import { OFFLINE_HINT, resolveHost } from '@/lib/host';
 import { workersAi } from '@/lib/workersAi';
 
 export async function GET(req: Request) {
-  const cf = workersAi();
+  const cf = await workersAi();
   if (cf) return Response.json({ models: [cf.model] });
 
   const host = resolveHost(new URL(req.url).searchParams.get('host'));

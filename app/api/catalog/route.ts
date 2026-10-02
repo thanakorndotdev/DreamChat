@@ -5,5 +5,5 @@ import { listCatalog } from '@/lib/server/catalog';
 export async function GET() {
   const user = await requireMember();
   if (user instanceof Response) return user;
-  return Response.json(listCatalog("WHERE c.status = 'published'").map(({ reviewNote: _r, sourceId: _s, ...e }) => e));
+  return Response.json((await listCatalog({ status: 'published' })).map(({ reviewNote: _r, sourceId: _s, ...e }) => e));
 }

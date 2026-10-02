@@ -1,12 +1,15 @@
 import type { Metadata } from 'next';
-import LegalPage, { CONTACT, OPERATOR } from '@/components/LegalPage';
+import { connection } from 'next/server';
+import LegalPage, { legalInfo } from '@/components/LegalPage';
 
 export const metadata: Metadata = { title: 'ข้อกำหนดการใช้งาน | หลงรักแชท' };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  await connection();
+  const { operator, contact } = legalInfo();
   return (
     <LegalPage title="ข้อกำหนดการใช้งาน" updated="2 ตุลาคม 2569">
-      <p>การสมัครหรือใช้หลงรักแชทถือว่าคุณยอมรับข้อกำหนดนี้ บริการนี้ให้บริการโดย {OPERATOR}</p>
+      <p>การสมัครหรือใช้หลงรักแชทถือว่าคุณยอมรับข้อกำหนดนี้ บริการนี้ให้บริการโดย {operator}</p>
 
       <h2>บัญชี</h2>
       <ul>
@@ -26,7 +29,7 @@ export default function TermsPage() {
         <li>แพ็กเกจแบบชำระเงินต่ออายุอัตโนมัติตามรอบบิลที่แสดงตอนสมัคร ด้วยบัตรที่ใช้ชำระ จนกว่าคุณจะยกเลิก</li>
         <li>ยกเลิกได้ทุกเมื่อที่หน้าแพ็กเกจสมาชิก เมื่อยกเลิกแล้วยังใช้สิทธิ์ได้จนหมดรอบที่ชำระไว้ และจะไม่ถูกตัดเงินรอบถัดไป</li>
         <li>โค้ดส่วนลดและโค้ดใช้ฟรีเป็นไปตามเงื่อนไขของแต่ละโค้ด เช่น จำนวนคนที่ใช้ได้ วันหมดอายุ และแพ็กเกจที่ใช้ได้</li>
-        <li>การคืนเงินเป็นไปตามที่กฎหมายคุ้มครองผู้บริโภคกำหนด ติดต่อ {CONTACT}</li>
+        <li>การคืนเงินเป็นไปตามที่กฎหมายคุ้มครองผู้บริโภคกำหนด ติดต่อ {contact}</li>
         <li>เราอาจปรับราคาหรือสิทธิ์ของแพ็กเกจ โดยแจ้งล่วงหน้าก่อนมีผลกับรอบบิลถัดไปของคุณ</li>
       </ul>
 
@@ -34,7 +37,7 @@ export default function TermsPage() {
       <p>เราอาจระงับหรือปิดบัญชีที่ละเมิดข้อกำหนดนี้ หรือใช้งานในทางที่กระทบผู้อื่นหรือระบบ</p>
 
       <h2>ติดต่อ</h2>
-      <p>{CONTACT}</p>
+      <p>{contact}</p>
     </LegalPage>
   );
 }

@@ -19,8 +19,8 @@ export async function POST(req: Request) {
   }
   const isChat = purpose !== 'note' && purpose !== 'generate';
 
-  const plan = effectivePlan(user.id);
-  const used = usageToday(user.id);
+  const plan = await effectivePlan(user.id);
+  const used = await usageToday(user.id);
   if (isChat && plan.features.dailyMessages && used.chat >= plan.features.dailyMessages) {
     return new Response(`วันนี้คุยครบ ${plan.features.dailyMessages} ข้อความของแพ็กเกจ ${plan.name} แล้ว พรุ่งนี้คุยต่อได้ หรืออัปเกรดเพื่อคุยเพิ่ม`, {
       status: 429,
@@ -39,10 +39,10 @@ export async function POST(req: Request) {
   // Optional reply cap (e.g. character generation needs room for a full JSON sheet); clamped to keep cost bounded.
   const maxTokens = typeof rawMax === 'number' && rawMax > 0 ? Math.min(Math.floor(rawMax), 2048) : undefined;
 
-  const cf = workersAi();
+  const cf = await workersAi();
   if (cf) {
     const res = await workersAiChat(cf, plan.features.model || pickModel(cf, model), messages, req.signal, maxTokens);
-    if (res.ok) countUsage(user.id, isChat ? 'chat' : 'other');
+    if (res.ok) await countUsage(user.id, isChat ? 'chat' : 'other');
     return res;
   }
 
@@ -69,6 +69,6 @@ export async function POST(req: Request) {
     });
   }
 
-  countUsage(user.id, isChat ? 'chat' : 'other');
+  await countUsage(user.id, isChat ? 'chat' : 'other');
   return new Response(res.body, { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } });
 }

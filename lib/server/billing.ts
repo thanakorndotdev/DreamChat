@@ -1,27 +1,20 @@
-import { getDb } from './db';
+import { db } from './db';
 import { FREE_PLAN_ID, type Plan, type PlanFeatures } from '../plans';
 
-type PlanRow = { id: string; name: string; level: number; price: number; interval: string; active: number; features: string; perks: string };
+type PlanRow = { id: string; name: string; level: number; price: number; interval: string; active: boolean; features: PlanFeatures; perks: string[] };
 
 function toPlan(r: PlanRow): Plan {
-  return {
-    id: r.id,
-    name: r.name,
-    level: r.level,
-    price: r.price,
-    interval: r.interval === 'year' ? 'year' : 'month',
-    active: !!r.active,
-    features: JSON.parse(r.features) as PlanFeatures,
-    perks: JSON.parse(r.perks) as string[],
-  };
+  return { ...r, interval: r.interval === 'year' ? 'year' : 'month' };
 }
 
-export function listPlans(): Plan[] {
-  return (getDb().prepare('SELECT * FROM plans ORDER BY level, price').all() as PlanRow[]).map(toPlan);
+export async function listPlans(): Promise<Plan[]> {
+  const sql = await db();
+  return (await sql<PlanRow[]>`SELECT * FROM plans ORDER BY level, price`).map(toPlan);
 }
 
-export function getPlan(id: string): Plan | null {
-  const row = getDb().prepare('SELECT * FROM plans WHERE id = ?').get(id) as PlanRow | undefined;
+export async function getPlan(id: string): Promise<Plan | null> {
+  const sql = await db();
+  const [row] = await sql<PlanRow[]>`SELECT * FROM plans WHERE id = ${id}`;
   return row ? toPlan(row) : null;
 }
 
@@ -34,17 +27,18 @@ export type Subscription = {
   stripeSubscriptionId: string | null;
 };
 
-export function getSubscription(userId: number): Subscription | null {
-  const r = getDb().prepare('SELECT * FROM subscriptions WHERE user_id = ?').get(userId) as
-    | { plan_id: string; source: Subscription['source']; status: string; current_period_end: number; cancel_at_period_end: number; stripe_subscription_id: string | null }
-    | undefined;
+export async function getSubscription(userId: number): Promise<Subscription | null> {
+  const sql = await db();
+  const [r] = await sql<
+    { plan_id: string; source: Subscription['source']; status: string; current_period_end: number; cancel_at_period_end: boolean; stripe_subscription_id: string | null }[]
+  >`SELECT * FROM subscriptions WHERE user_id = ${userId}`;
   return r
     ? {
         planId: r.plan_id,
         source: r.source,
         status: r.status,
         currentPeriodEnd: r.current_period_end,
-        cancelAtPeriodEnd: !!r.cancel_at_period_end,
+        cancelAtPeriodEnd: r.cancel_at_period_end,
         stripeSubscriptionId: r.stripe_subscription_id,
       }
     : null;
@@ -62,22 +56,20 @@ export function isLive(sub: Subscription | null, now = Date.now()) {
 }
 
 /** The plan an account is on right now: its live membership, or the free plan. */
-export function effectivePlan(userId: number): Plan {
-  const sub = getSubscription(userId);
-  const plan = isLive(sub) ? getPlan(sub!.planId) : null;
-  return plan ?? getPlan(FREE_PLAN_ID)!;
+export async function effectivePlan(userId: number): Promise<Plan> {
+  const sub = await getSubscription(userId);
+  const plan = sub && isLive(sub) ? await getPlan(sub.planId) : null;
+  return plan ?? (await getPlan(FREE_PLAN_ID))!;
 }
 
-export function setSubscription(userId: number, s: Subscription) {
-  getDb()
-    .prepare(
-      `INSERT INTO subscriptions (user_id, plan_id, source, status, current_period_end, cancel_at_period_end, stripe_subscription_id, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (user_id) DO UPDATE SET plan_id = excluded.plan_id, source = excluded.source, status = excluded.status,
-         current_period_end = excluded.current_period_end, cancel_at_period_end = excluded.cancel_at_period_end,
-         stripe_subscription_id = excluded.stripe_subscription_id, updated_at = excluded.updated_at`,
-    )
-    .run(userId, s.planId, s.source, s.status, s.currentPeriodEnd, s.cancelAtPeriodEnd ? 1 : 0, s.stripeSubscriptionId, Date.now());
+export async function setSubscription(userId: number, s: Subscription) {
+  const sql = await db();
+  await sql`
+    INSERT INTO subscriptions (user_id, plan_id, source, status, current_period_end, cancel_at_period_end, stripe_subscription_id, updated_at)
+    VALUES (${userId}, ${s.planId}, ${s.source}, ${s.status}, ${s.currentPeriodEnd}, ${s.cancelAtPeriodEnd}, ${s.stripeSubscriptionId}, ${Date.now()})
+    ON CONFLICT (user_id) DO UPDATE SET plan_id = excluded.plan_id, source = excluded.source, status = excluded.status,
+      current_period_end = excluded.current_period_end, cancel_at_period_end = excluded.cancel_at_period_end,
+      stripe_subscription_id = excluded.stripe_subscription_id, updated_at = excluded.updated_at`;
 }
 
 /** Days are counted in Thailand, so the daily limit resets at midnight Bangkok time. */
@@ -85,17 +77,19 @@ export function today() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 }
 
-export function usageToday(userId: number) {
-  const r = getDb().prepare('SELECT chat, other FROM usage WHERE user_id = ? AND day = ?').get(userId, today()) as
-    | { chat: number; other: number }
-    | undefined;
+export async function usageToday(userId: number) {
+  const sql = await db();
+  const [r] = await sql<{ chat: number; other: number }[]>`SELECT chat, other FROM usage WHERE user_id = ${userId} AND day = ${today()}`;
   return r ?? { chat: 0, other: 0 };
 }
 
-export function countUsage(userId: number, kind: 'chat' | 'other') {
-  getDb()
-    .prepare(`INSERT INTO usage (user_id, day, ${kind}) VALUES (?, ?, 1) ON CONFLICT (user_id, day) DO UPDATE SET ${kind} = ${kind} + 1`)
-    .run(userId, today());
+export async function countUsage(userId: number, kind: 'chat' | 'other') {
+  const sql = await db();
+  if (kind === 'chat') {
+    await sql`INSERT INTO usage (user_id, day, chat) VALUES (${userId}, ${today()}, 1) ON CONFLICT (user_id, day) DO UPDATE SET chat = usage.chat + 1`;
+  } else {
+    await sql`INSERT INTO usage (user_id, day, other) VALUES (${userId}, ${today()}, 1) ON CONFLICT (user_id, day) DO UPDATE SET other = usage.other + 1`;
+  }
 }
 
 // ---------- coupons ----------
@@ -120,17 +114,16 @@ type CouponRow = {
   kind: Coupon['kind'];
   value: number;
   duration: Coupon['duration'];
-  plan_ids: string | null;
+  plan_ids: string[] | null;
   max_redemptions: number | null;
   expires_at: number | null;
-  active: number;
+  active: boolean;
   note: string;
   stripe_coupon_id: string | null;
   created_at: number;
   redemptions: number;
 };
 
-const COUPON_SELECT = `SELECT c.*, (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.code = c.code) AS redemptions FROM coupons c`;
 
 function toCoupon(r: CouponRow): Coupon {
   return {
@@ -138,10 +131,10 @@ function toCoupon(r: CouponRow): Coupon {
     kind: r.kind,
     value: r.value,
     duration: r.duration,
-    planIds: r.plan_ids ? (JSON.parse(r.plan_ids) as string[]) : null,
+    planIds: r.plan_ids,
     maxRedemptions: r.max_redemptions,
     expiresAt: r.expires_at,
-    active: !!r.active,
+    active: r.active,
     note: r.note,
     stripeCouponId: r.stripe_coupon_id,
     createdAt: r.created_at,
@@ -149,27 +142,37 @@ function toCoupon(r: CouponRow): Coupon {
   };
 }
 
-export function listCoupons(): Coupon[] {
-  return (getDb().prepare(`${COUPON_SELECT} ORDER BY c.created_at DESC`).all() as CouponRow[]).map(toCoupon);
+export async function listCoupons(): Promise<Coupon[]> {
+  const sql = await db();
+  const rows = await sql<CouponRow[]>`
+    SELECT c.*, (SELECT count(*) FROM coupon_redemptions r WHERE r.code = c.code) AS redemptions
+    FROM coupons c ORDER BY c.created_at DESC`;
+  return rows.map(toCoupon);
 }
 
-export function getCoupon(code: string): Coupon | null {
-  const r = getDb().prepare(`${COUPON_SELECT} WHERE c.code = ?`).get(code.trim()) as CouponRow | undefined;
+export async function getCoupon(code: string): Promise<Coupon | null> {
+  const sql = await db();
+  const [r] = await sql<CouponRow[]>`
+    SELECT c.*, (SELECT count(*) FROM coupon_redemptions r WHERE r.code = c.code) AS redemptions
+    FROM coupons c WHERE c.code = ${code.trim()}`;
   return r ? toCoupon(r) : null;
 }
 
 /** Why this account can't use the code on this plan, or null when it can. */
-export function couponProblem(c: Coupon | null, userId: number, planId: string | null): string | null {
+export async function couponProblem(c: Coupon | null, userId: number, planId: string | null): Promise<string | null> {
   if (!c || !c.active) return 'ไม่พบโค้ดนี้ หรือโค้ดถูกปิดใช้แล้ว';
   if (c.expiresAt && c.expiresAt < Date.now()) return 'โค้ดนี้หมดอายุแล้ว';
-  if (getDb().prepare('SELECT 1 FROM coupon_redemptions WHERE code = ? AND user_id = ?').get(c.code, userId)) return 'บัญชีนี้ใช้โค้ดนี้ไปแล้ว';
+  const sql = await db();
+  const [used] = await sql`SELECT 1 FROM coupon_redemptions WHERE code = ${c.code} AND user_id = ${userId}`;
+  if (used) return 'บัญชีนี้ใช้โค้ดนี้ไปแล้ว';
   if (c.maxRedemptions !== null && c.redemptions >= c.maxRedemptions) return 'โค้ดนี้มีคนใช้ครบจำนวนแล้ว';
   if (planId && c.planIds && !c.planIds.includes(planId)) return 'โค้ดนี้ใช้กับแพ็กเกจนี้ไม่ได้';
   return null;
 }
 
-export function recordRedemption(code: string, userId: number) {
-  getDb().prepare('INSERT OR IGNORE INTO coupon_redemptions (code, user_id, at) VALUES (?, ?, ?)').run(code, userId, Date.now());
+export async function recordRedemption(code: string, userId: number) {
+  const sql = await db();
+  await sql`INSERT INTO coupon_redemptions (code, user_id, at) VALUES (${code}, ${userId}, ${Date.now()}) ON CONFLICT DO NOTHING`;
 }
 
 /** Price of the first period after the code. */

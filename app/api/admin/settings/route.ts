@@ -14,13 +14,19 @@ export type AdminSettings = {
   stripe: { secretKey: 'live' | 'test' | null; webhook: boolean; appUrl: string };
 };
 
-function snapshot(): AdminSettings {
-  const cf = workersAi();
+async function snapshot(): Promise<AdminSettings> {
+  const cf = await workersAi();
+  const [accountId, apiToken, model, fallback] = await Promise.all([
+    getSetting('cf_account_id'),
+    getSetting('cf_api_token'),
+    getSetting('cf_model'),
+    getSetting('cf_fallback_model'),
+  ]);
   return {
-    cf_account_id: getSetting('cf_account_id') ?? '',
-    cf_api_token_set: getSetting('cf_api_token') ? 'admin' : process.env.CLOUDFLARE_API_TOKEN?.trim() ? 'env' : null,
-    cf_model: getSetting('cf_model') ?? '',
-    cf_fallback_model: getSetting('cf_fallback_model') ?? '',
+    cf_account_id: accountId ?? '',
+    cf_api_token_set: apiToken ? 'admin' : process.env.CLOUDFLARE_API_TOKEN?.trim() ? 'env' : null,
+    cf_model: model ?? '',
+    cf_fallback_model: fallback ?? '',
     active: cf ? { backend: 'workers-ai', model: cf.model } : { backend: 'ollama', model: null },
     env: {
       cf_account_id: process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? '',
@@ -39,7 +45,7 @@ function snapshot(): AdminSettings {
 export async function GET() {
   const me = await requireAdmin();
   if (me instanceof Response) return me;
-  return Response.json(snapshot());
+  return Response.json(await snapshot());
 }
 
 /** Keys left out are untouched; an empty string clears the override. */
@@ -51,16 +57,16 @@ export async function PUT(req: Request) {
     const value = body[key];
     if (value === undefined) continue;
     if (typeof value !== 'string') return new Response(`${key} ต้องเป็นข้อความ`, { status: 400 });
-    setSetting(key, value);
+    await setSetting(key, value);
   }
-  return Response.json(snapshot());
+  return Response.json(await snapshot());
 }
 
 /** Sends one short message through the current backend so the admin can see the connection works. */
 export async function POST(req: Request) {
   const me = await requireAdmin();
   if (me instanceof Response) return me;
-  const cf = workersAi();
+  const cf = await workersAi();
   if (!cf) return new Response('ยังไม่ได้ตั้งค่า Workers AI ต้องมีทั้ง Account ID และ API token', { status: 400 });
 
   const started = Date.now();

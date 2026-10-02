@@ -1,13 +1,16 @@
 import type { Metadata } from 'next';
-import LegalPage, { CONTACT, OPERATOR } from '@/components/LegalPage';
+import { connection } from 'next/server';
+import LegalPage, { legalInfo } from '@/components/LegalPage';
 
 export const metadata: Metadata = { title: 'นโยบายความเป็นส่วนตัว | หลงรักแชท' };
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  await connection();
+  const { operator, contact } = legalInfo();
   return (
     <LegalPage title="นโยบายความเป็นส่วนตัว" updated="2 ตุลาคม 2569">
       <p>
-        {OPERATOR} (“เรา”) ผู้ให้บริการหลงรักแชท เป็นผู้ควบคุมข้อมูลส่วนบุคคลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)
+        {operator} (“เรา”) ผู้ให้บริการหลงรักแชท เป็นผู้ควบคุมข้อมูลส่วนบุคคลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)
         นโยบายนี้อธิบายว่าเราเก็บข้อมูลอะไร ใช้ทำอะไร และคุณมีสิทธิ์อะไรบ้าง
       </p>
 
@@ -52,7 +55,7 @@ export default function PrivacyPage() {
 
       <h2>สิทธิ์ของคุณ</h2>
       <p>
-        คุณขอเข้าถึง ขอสำเนา ขอแก้ไข ขอลบ ขอโอนย้าย ขอระงับ หรือคัดค้านการใช้ข้อมูล และถอนความยินยอมได้ทุกเมื่อ ติดต่อ {CONTACT}{' '}
+        คุณขอเข้าถึง ขอสำเนา ขอแก้ไข ขอลบ ขอโอนย้าย ขอระงับ หรือคัดค้านการใช้ข้อมูล และถอนความยินยอมได้ทุกเมื่อ ติดต่อ {contact}{' '}
         เราจะตอบภายใน 30 วัน หากเห็นว่าเราไม่ปฏิบัติตามกฎหมาย คุณร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคลได้
       </p>
 
@@ -61,7 +64,7 @@ export default function PrivacyPage() {
 
       <h2>ติดต่อเรา</h2>
       <p>
-        {OPERATOR} อีเมล {CONTACT}
+        {operator} อีเมล {contact}
       </p>
     </LegalPage>
   );

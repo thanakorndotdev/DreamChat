@@ -1,11 +1,10 @@
 import { requireMember } from '@/lib/server/auth';
-import { getDb } from '@/lib/server/db';
+import { db } from '@/lib/server/db';
 
 export async function GET() {
   const user = await requireMember();
   if (user instanceof Response) return user;
-  const rows = getDb()
-    .prepare('SELECT data FROM characters WHERE user_id = ? ORDER BY updated_at DESC')
-    .all(user.id) as { data: string }[];
-  return Response.json(rows.map((r) => JSON.parse(r.data)));
+  const sql = await db();
+  const rows = await sql<{ data: unknown }[]>`SELECT data FROM characters WHERE user_id = ${user.id} ORDER BY updated_at DESC`;
+  return Response.json(rows.map((r) => r.data));
 }

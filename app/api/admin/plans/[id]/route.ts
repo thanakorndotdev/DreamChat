@@ -1,7 +1,7 @@
 import { FREE_PLAN_ID, type PlanFeatures } from '@/lib/plans';
 import { requireAdmin } from '@/lib/server/auth';
 import { getPlan } from '@/lib/server/billing';
-import { getDb } from '@/lib/server/db';
+import { db } from '@/lib/server/db';
 
 const int = (v: unknown, min: number, max: number) => Math.max(min, Math.min(max, Math.floor(Number(v) || 0)));
 
@@ -13,7 +13,7 @@ export async function PUT(req: Request, ctx: RouteContext<'/api/admin/plans/[id]
   const me = await requireAdmin();
   if (me instanceof Response) return me;
   const { id } = await ctx.params;
-  const plan = getPlan(id);
+  const plan = await getPlan(id);
   if (!plan) return new Response('ไม่พบแพ็กเกจนี้', { status: 404 });
 
   const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -31,17 +31,16 @@ export async function PUT(req: Request, ctx: RouteContext<'/api/admin/plans/[id]
   if (!isFree && price < 1000) return new Response('ราคาต้องอย่างน้อย ฿10', { status: 400 });
   const perks = Array.isArray(b.perks) ? b.perks.filter((p): p is string => typeof p === 'string' && !!p.trim()).map((p) => p.trim()) : plan.perks;
 
-  getDb()
-    .prepare('UPDATE plans SET name = ?, level = ?, price = ?, interval = ?, active = ?, features = ?, perks = ? WHERE id = ?')
-    .run(
-      typeof b.name === 'string' && b.name.trim() ? b.name.trim() : plan.name,
-      isFree ? 0 : int(b.level, 1, 2),
-      price,
-      b.interval === 'year' ? 'year' : 'month',
-      isFree || b.active ? 1 : 0,
-      JSON.stringify(features),
-      JSON.stringify(perks),
-      id,
-    );
+  const sql = await db();
+  await sql`
+    UPDATE plans SET
+      name = ${typeof b.name === 'string' && b.name.trim() ? b.name.trim() : plan.name},
+      level = ${isFree ? 0 : int(b.level, 1, 2)},
+      price = ${price},
+      interval = ${b.interval === 'year' ? 'year' : 'month'},
+      active = ${isFree || !!b.active},
+      features = ${sql.json(features)},
+      perks = ${sql.json(perks)}
+    WHERE id = ${id}`;
   return new Response(null, { status: 204 });
 }

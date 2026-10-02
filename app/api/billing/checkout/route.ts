@@ -1,12 +1,12 @@
 import { requireMember } from '@/lib/server/auth';
 import { couponProblem, getCoupon, getPlan, getSubscription, isLive } from '@/lib/server/billing';
-import { getDb } from '@/lib/server/db';
+import { db } from '@/lib/server/db';
 import { appUrl, stripe, stripeConfigured } from '@/lib/server/stripe';
 
 /** The account's Stripe customer, created on first checkout. */
 async function customerFor(user: { id: number; username: string; email: string | null; phone: string | null }) {
-  const db = getDb();
-  const row = db.prepare('SELECT stripe_customer_id FROM users WHERE id = ?').get(user.id) as { stripe_customer_id: string | null };
+  const sql = await db();
+  const [row] = await sql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM users WHERE id = ${user.id}`;
   if (row.stripe_customer_id) return row.stripe_customer_id;
   const customer = await stripe<{ id: string }>('POST', 'customers', {
     email: user.email ?? undefined,
@@ -14,13 +14,13 @@ async function customerFor(user: { id: number; username: string; email: string |
     name: user.username,
     metadata: { userId: user.id },
   });
-  db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(customer.id, user.id);
+  await sql`UPDATE users SET stripe_customer_id = ${customer.id} WHERE id = ${user.id}`;
   return customer.id;
 }
 
 /** Stripe coupons can't be edited, so one is made per code (and remade when the admin changes the code). */
 async function stripeCouponFor(code: string) {
-  const c = getCoupon(code)!;
+  const c = (await getCoupon(code))!;
   if (c.stripeCouponId) return c.stripeCouponId;
   const created = await stripe<{ id: string }>('POST', 'coupons', {
     name: c.code,
@@ -28,7 +28,8 @@ async function stripeCouponFor(code: string) {
     ...(c.kind === 'percent' ? { percent_off: c.value } : { amount_off: c.value, currency: 'thb' }),
     metadata: { code: c.code },
   });
-  getDb().prepare('UPDATE coupons SET stripe_coupon_id = ? WHERE code = ?').run(created.id, c.code);
+  const sql = await db();
+  await sql`UPDATE coupons SET stripe_coupon_id = ${created.id} WHERE code = ${c.code}`;
   return created.id;
 }
 
@@ -38,10 +39,10 @@ export async function POST(req: Request) {
   if (!stripeConfigured()) return new Response('ยังไม่เปิดรับชำระเงิน', { status: 503 });
 
   const { planId, code } = await req.json().catch(() => ({}));
-  const plan = typeof planId === 'string' ? getPlan(planId) : null;
+  const plan = typeof planId === 'string' ? await getPlan(planId) : null;
   if (!plan || !plan.active || plan.price <= 0) return new Response('ไม่พบแพ็กเกจนี้', { status: 404 });
 
-  const sub = getSubscription(user.id);
+  const sub = await getSubscription(user.id);
   if (sub && isLive(sub) && sub.source === 'stripe') {
     return new Response('บัญชีนี้สมัครแพ็กเกจอยู่แล้ว เปลี่ยนหรือยกเลิกได้ที่ "จัดการการชำระเงิน"', { status: 409 });
   }
@@ -49,8 +50,8 @@ export async function POST(req: Request) {
   let couponId: string | undefined;
   let couponCode = '';
   if (typeof code === 'string' && code.trim()) {
-    const coupon = getCoupon(code);
-    const problem = couponProblem(coupon, user.id, plan.id);
+    const coupon = await getCoupon(code);
+    const problem = await couponProblem(coupon, user.id, plan.id);
     if (problem || !coupon) return new Response(problem, { status: 400 });
     if (coupon.kind === 'free_days') return new Response('โค้ดนี้เป็นโค้ดวันฟรี กดใช้โค้ดได้เลยโดยไม่ต้องชำระเงิน', { status: 400 });
     couponId = await stripeCouponFor(coupon.code);

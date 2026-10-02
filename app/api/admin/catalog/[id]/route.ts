@@ -1,7 +1,7 @@
 import { type CatalogStatus, toSheet } from '@/lib/catalog';
 import { requireAdmin } from '@/lib/server/auth';
 import { getEntry } from '@/lib/server/catalog';
-import { getDb } from '@/lib/server/db';
+import { db } from '@/lib/server/db';
 
 const STATUSES: CatalogStatus[] = ['draft', 'pending', 'published', 'rejected'];
 
@@ -10,7 +10,7 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/catalog/
   const me = await requireAdmin();
   if (me instanceof Response) return me;
   const { id } = await ctx.params;
-  const entry = getEntry(id);
+  const entry = await getEntry(id);
   if (!entry) return new Response('ไม่พบตัวละครนี้', { status: 404 });
 
   const body = (await req.json().catch(() => ({}))) as { sheet?: unknown; tier?: unknown; status?: unknown; reviewNote?: unknown };
@@ -22,9 +22,11 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/catalog/
   const note = typeof body.reviewNote === 'string' ? body.reviewNote.slice(0, 500) : entry.reviewNote;
   const now = Date.now();
 
-  getDb()
-    .prepare('UPDATE catalog SET data = ?, tier = ?, status = ?, review_note = ?, updated_at = ?, published_at = ? WHERE id = ?')
-    .run(JSON.stringify(sheet), tier, status, note, now, status === 'published' ? (entry.publishedAt ?? now) : null, id);
+  const sql = await db();
+  await sql`
+    UPDATE catalog SET data = ${sql.json(sheet)}, tier = ${tier}, status = ${status}, review_note = ${note}, updated_at = ${now},
+      published_at = ${status === 'published' ? (entry.publishedAt ?? now) : null}
+    WHERE id = ${id}`;
   return new Response(null, { status: 204 });
 }
 
@@ -32,6 +34,7 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/catalog/
 export async function DELETE(_req: Request, ctx: RouteContext<'/api/admin/catalog/[id]'>) {
   const me = await requireAdmin();
   if (me instanceof Response) return me;
-  getDb().prepare('DELETE FROM catalog WHERE id = ?').run((await ctx.params).id);
+  const sql = await db();
+  await sql`DELETE FROM catalog WHERE id = ${(await ctx.params).id}`;
   return new Response(null, { status: 204 });
 }

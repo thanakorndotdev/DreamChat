@@ -1,5 +1,5 @@
 import { clearFailures, isLockedOut, recordFailure, startSession, verifyPassword } from '@/lib/server/auth';
-import { getDb } from '@/lib/server/db';
+import { db } from '@/lib/server/db';
 
 export async function POST(req: Request) {
   const { username, password } = await req.json().catch(() => ({}));
@@ -11,9 +11,9 @@ export async function POST(req: Request) {
     return new Response('ลองผิดหลายครั้งเกินไป รอสัก 15 นาทีแล้วลองใหม่', { status: 429 });
   }
 
-  const user = getDb().prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(name) as
-    | { id: number; username: string; password_hash: string }
-    | undefined;
+  const sql = await db();
+  const [user] = await sql<{ id: number; username: string; password_hash: string }[]>`
+    SELECT id, username, password_hash FROM users WHERE username = ${name}`;
   if (!user || !(await verifyPassword(password, user.password_hash))) {
     recordFailure(name);
     return new Response('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', { status: 401 });
