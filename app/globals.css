@@ -710,6 +710,125 @@ label.profile-h {
   display: none;
 }
 
+/* Tabs on the left panel: the character sheet and the story notebook. */
+.side-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--ink-deep) 80%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--seam);
+  flex-shrink: 0;
+}
+.side-tabs button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--dusk);
+  transition: background-color 0.15s, color 0.15s;
+}
+.side-tabs button:hover {
+  color: var(--paper);
+}
+.side-tabs button[aria-selected='true'] {
+  background: var(--velvet-2);
+  color: var(--paper);
+  font-weight: 600;
+}
+.tab-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--blush);
+  color: var(--blush-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+}
+.tab-pulse,
+.notes-btn[data-busy]::after {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--candle);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.notes-btn {
+  position: relative;
+}
+.notes-btn[data-busy]::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.notes {
+  padding: 20px 24px 32px;
+}
+.notes-title {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.notes-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 10px 0;
+  border-block: 1px solid var(--seam);
+  font-size: 13px;
+}
+.notes-status .link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--candle);
+  margin-bottom: 4px;
+}
+.note-del {
+  width: 26px;
+  height: 26px;
+}
+.note-text {
+  min-height: 64px;
+}
+.notes-empty {
+  font-size: 14px;
+  color: var(--dusk);
+  line-height: 1.75;
+}
+
 .scene {
   position: relative;
   isolation: isolate;

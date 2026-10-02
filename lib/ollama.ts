@@ -21,8 +21,22 @@ ${lexiconText()}`;
 const RUDE_ON_NOTE = '\n\n(OOC — do not mention this note: rude mode is ON. Reply in character and be rude to me, as crude as your personality allows.)';
 const RUDE_OFF_NOTE = '\n\n(OOC — do not mention this note: rude mode is OFF. Reply in character with no profanity; do not use กู/มึง.)';
 
+/** The model only sees this many recent messages; story notes (lib/memory.ts) cover everything before. */
+export const HISTORY_WINDOW = 10;
+/** Oldest notes drop out of the prompt past this many, so it can't grow without bound. */
+const NOTES_IN_PROMPT = 30;
+
+const STORY_SO_FAR = (notes: string) => `6. Stay consistent with the STORY SO FAR below: remember these events, promises and details, and build on them.
+
+STORY SO FAR (notes on the earlier conversation, oldest first):
+${notes}`;
+
 export function buildPrompt(char: Character, history: Message[]): ChatMessage[] {
   const rude = !!char.adult && !adultBlocker(char);
+  const notes = (char.notes ?? [])
+    .slice(-NOTES_IN_PROMPT)
+    .map((n) => n.text)
+    .join('\n');
   const system = `
 You are an expert creative roleplay partner. You are roleplaying as "${char.name}".
 Stay 100% in character at all times.
@@ -49,13 +63,14 @@ ROLEPLAY RULES:
 3. Read the conversation history carefully. Directly acknowledge what ${char.userName || 'the user'} just said or asked.
 4. Advance the scene naturally. Keep dialogue lively, emotional, and authentic.
 ${rude ? ADULT_RULES(char.userName || 'the user') : SAFE_RULES}
+${notes ? STORY_SO_FAR(notes) : ''}
 `.trim();
 
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
     ...history
       .filter((m) => !m.failed)
-      .slice(-10)
+      .slice(-HISTORY_WINDOW)
       .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }) as ChatMessage),
   ];
 

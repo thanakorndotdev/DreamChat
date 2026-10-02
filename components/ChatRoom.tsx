@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowClockwise, ArrowLeft, Camera, IdentificationCard, PaperPlaneRight, Stop, Trash } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowLeft, Camera, IdentificationCard, Notebook, PaperPlaneRight, Stop, Trash, X } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
 import StatusDot from './StatusDot';
 import { adultBlocker } from '@/lib/age';
 import { fileToAvatar } from '@/lib/image';
+import { NOTE_EVERY, pendingMessages, writeNote } from '@/lib/memory';
 import { buildPrompt, streamChat } from '@/lib/ollama';
 import type { Character, Message, OllamaStatus } from '@/lib/types';
 
@@ -24,6 +25,10 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'profile' | 'notes'>('profile');
+  const [noting, setNoting] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const notingRef = useRef(false);
   const scroller = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const abort = useRef<AbortController | null>(null);
@@ -38,6 +43,36 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [char.messages.length, streaming]);
+
+  // Jot a story note in the background once enough of the chat isn't covered by one yet.
+  const jot = async (from: Character) => {
+    if (notingRef.current) return;
+    notingRef.current = true;
+    setNoting(true);
+    setNoteError(null);
+    try {
+      const note = await writeNote({ host, model, char: from });
+      if (!note) return;
+      onUpdate((c) =>
+        // Drop the note if the chat was cleared or another note landed meanwhile.
+        (c.notedUpTo ?? 0) !== (from.notedUpTo ?? 0) || c.messages.filter((m) => !m.failed).length < note.upTo
+          ? c
+          : { ...c, notes: [...(c.notes ?? []), note], notedUpTo: note.upTo },
+      );
+    } catch (err) {
+      setNoteError(err instanceof Error ? err.message : 'จดบันทึกไม่สำเร็จ');
+    } finally {
+      notingRef.current = false;
+      setNoting(false);
+    }
+  };
+
+  const pending = pendingMessages(char).length;
+  useEffect(() => {
+    // Re-checks after each note too, so a long old chat catches up a chunk at a time.
+    // A failed note waits for the next message (send clears the error) instead of retrying in a loop.
+    if (!busy && !noting && !noteError && pending >= NOTE_EVERY) jot(char);
+  }, [pending, busy, noting, noteError]);
 
   const generate = async (history: Message[]) => {
     const controller = new AbortController();
@@ -76,6 +111,7 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
     const history: Message[] = [...char.messages.filter((m) => !m.failed), { sender: 'user', text }];
     onUpdate((c) => ({ ...c, messages: history, updatedAt: Date.now() }));
     setInput('');
+    setNoteError(null);
     generate(history);
   };
 
@@ -86,7 +122,12 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
   };
 
   const clear = () => {
-    onUpdate((c) => ({ ...c, messages: [{ sender: 'char', text: c.firstMessage || '*ยืนมองคุณอย่างเงียบสงบ*' }] }));
+    onUpdate((c) => ({
+      ...c,
+      messages: [{ sender: 'char', text: c.firstMessage || '*ยืนมองคุณอย่างเงียบสงบ*' }],
+      notes: [],
+      notedUpTo: 0,
+    }));
     setConfirmClear(false);
   };
 
@@ -107,7 +148,28 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
 
   return (
     <div className="chat" data-profile={profileOpen ? 'open' : undefined}>
-      <aside className="profile" aria-label="ข้อมูลตัวละคร">
+      <aside className="profile" aria-label="ข้อมูลตัวละครและบันทึกเรื่อง">
+        <div className="side-tabs" role="tablist">
+          <button role="tab" aria-selected={tab === 'profile'} onClick={() => setTab('profile')}>
+            ตัวละคร
+          </button>
+          <button role="tab" aria-selected={tab === 'notes'} onClick={() => setTab('notes')}>
+            บันทึกเรื่อง
+            {!!char.notes?.length && <span className="tab-count">{char.notes.length}</span>}
+            {noting && <span className="tab-pulse" aria-label="กำลังจด" />}
+          </button>
+        </div>
+        {tab === 'notes' ? (
+          <StoryNotes
+            char={char}
+            pending={pending}
+            noting={noting}
+            error={noteError}
+            onJot={() => jot(char)}
+            onUpdate={onUpdate}
+          />
+        ) : (
+        <>
         <div className="profile-portrait">
           <img src={char.avatar} alt="" />
           <label className="portrait-change">
@@ -208,6 +270,8 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
             </label>
           </div>
         </div>
+        </>
+        )}
       </aside>
       <button className="profile-scrim" aria-label="ปิดข้อมูลตัวละคร" onClick={() => setProfileOpen(false)} />
 
@@ -222,7 +286,8 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
           <button
             className="scene-who"
             onClick={() => {
-              setProfileOpen((v) => !v);
+              setTab('profile');
+              setProfileOpen((v) => !v || tab !== 'profile');
               if (!char.userName) requestAnimationFrame(() => document.getElementById('player-name')?.focus());
             }}
             aria-label="ดูข้อมูลตัวละคร"
@@ -240,11 +305,24 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
           <div className="scene-tools">
             <StatusDot status={status} />
             <button
+              className="icon-btn notes-btn"
+              onClick={() => {
+                setTab('notes');
+                setProfileOpen(true);
+              }}
+              aria-label="บันทึกเรื่อง"
+              title="บันทึกเรื่อง — สิ่งที่ AI จำไว้"
+              data-busy={noting ? '' : undefined}
+            >
+              <Notebook size={19} />
+            </button>
+            <button
               className="rude-toggle"
               aria-pressed={!!char.adult && !blocker}
               onClick={() => {
                 if (!blocker) return onUpdate((c) => ({ ...c, adult: !c.adult }));
                 // Explain why instead of silently refusing: open the profile at the age fields.
+                setTab('profile');
                 setProfileOpen(true);
                 requestAnimationFrame(() => document.getElementById('player-age')?.scrollIntoView({ block: 'center' }));
               }}
@@ -338,6 +416,70 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
           )}
         </form>
       </section>
+    </div>
+  );
+}
+
+type NotesProps = {
+  char: Character;
+  pending: number;
+  noting: boolean;
+  error: string | null;
+  onJot: () => void;
+  onUpdate: (fn: (c: Character) => Character) => void;
+};
+
+function StoryNotes({ char, pending, noting, error, onJot, onUpdate }: NotesProps) {
+  const notes = char.notes ?? [];
+  const roundsLeft = Math.max(1, Math.ceil((NOTE_EVERY - pending) / 2));
+  const editNote = (i: number, text: string) =>
+    onUpdate((c) => ({ ...c, notes: (c.notes ?? []).map((n, j) => (j === i ? { ...n, text } : n)) }));
+  const removeNote = (i: number) => onUpdate((c) => ({ ...c, notes: (c.notes ?? []).filter((_, j) => j !== i) }));
+
+  return (
+    <div className="notes">
+      <h2 className="notes-title">บันทึกเรื่อง</h2>
+      <p className="help">
+        AI จะจดเรื่องสำคัญไว้ทุก 5 รอบที่คุยกัน เพื่อให้จำเรื่องราวได้ตลอดทั้งแชท แก้หรือลบได้ มีผลกับข้อความถัดไป
+      </p>
+
+      <div className="notes-status">
+        {noting ? (
+          <span className="thinking">กำลังจดบันทึก</span>
+        ) : error ? (
+          <span className="help warn" role="alert">
+            จดไม่สำเร็จ: {error}
+          </span>
+        ) : (
+          <span className="help">{pending ? `อีกประมาณ ${roundsLeft} รอบจะจดบันทึกถัดไป` : 'จดครบทุกข้อความแล้ว'}</span>
+        )}
+        <button className="link" onClick={onJot} disabled={noting || pending < 2}>
+          {error ? 'ลองอีกครั้ง' : 'จดตอนนี้'}
+        </button>
+      </div>
+
+      {notes.length ? (
+        <ol className="notes-list">
+          {notes.map((n, i) => (
+            <li key={i} className="note">
+              <div className="note-head">
+                <span>ตอนที่ {i + 1}</span>
+                <button className="icon-btn note-del" onClick={() => removeNote(i)} aria-label={`ลบบันทึกตอนที่ ${i + 1}`}>
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                className="profile-input profile-textarea note-text"
+                value={n.text}
+                onChange={(e) => editNote(i, e.target.value)}
+                aria-label={`บันทึกตอนที่ ${i + 1}`}
+              />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="notes-empty">ยังไม่มีบันทึก คุยกันไปอีกสักพัก แล้ว AI จะเริ่มจดเรื่องราวให้เอง</p>
+      )}
     </div>
   );
 }

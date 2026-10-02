@@ -5,6 +5,12 @@ export type Message = {
   failed?: boolean;
 };
 
+export type StoryNote = {
+  text: string;
+  /** Message count at the end of the stretch this note summarizes. */
+  upTo: number;
+};
+
 export type Character = {
   id: string;
   name: string;
@@ -23,6 +29,10 @@ export type Character = {
   /** 18+ mode: crude language and mature themes, using lib/lexicon.ts. */
   adult?: boolean;
   messages: Message[];
+  /** Story notes the AI jots down as the chat goes on, so it remembers what scrolled out of its window. */
+  notes?: StoryNote[];
+  /** How many messages (from the start) the notes already cover. */
+  notedUpTo?: number;
   updatedAt: number;
 };
 
