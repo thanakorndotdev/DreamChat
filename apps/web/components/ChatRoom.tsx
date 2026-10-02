@@ -323,11 +323,11 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
             <IdentificationCard className="only-mobile" size={18} />
           </button>
           <div className="scene-tools">
-            <button className="icon-btn" onClick={onReport} aria-label="แจ้งปัญหา" title="แจ้งปัญหา">
+            <button className="icon-btn hide-narrow" onClick={onReport} aria-label="แจ้งปัญหา" title="แจ้งปัญหา">
               <Bug size={19} />
             </button>
             <button
-              className="icon-btn notes-btn"
+              className="icon-btn notes-btn hide-mobile"
               onClick={() => {
                 setTab('notes');
                 setProfileOpen(true);
@@ -351,7 +351,10 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
               title={blocker ?? 'ให้ตัวละครพูดหยาบใส่คุณตามนิสัย (18+)'}
             >
               <span className="rude-track" aria-hidden />
-              หยาบ {char.adult && !blocker ? 'เปิด' : 'ปิด'}
+              <span className="rude-text">หยาบ {char.adult && !blocker ? 'เปิด' : 'ปิด'}</span>
+              <span className="rude-short" aria-hidden>
+                18+
+              </span>
             </button>
             {confirmClear ? (
               <span className="confirm">

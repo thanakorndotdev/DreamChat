@@ -138,7 +138,7 @@ export default function Lobby({
 
   return (
     <div className="lobby">
-      <header className="topbar">
+      <header className="topbar" data-signed-in={guest ? undefined : ''}>
         <div className="brand">
           <Link className="brand-mark" href="/">หลงรักแชท</Link>
         </div>
@@ -157,11 +157,12 @@ export default function Lobby({
         <div className="topbar-actions">
           {guest ? (
             <>
-              <Link className="btn btn-ghost" href="/membership">
-                แพ็กเกจ
+              <Link className="btn btn-ghost btn-collapse" href="/membership" aria-label="แพ็กเกจ">
+                <Crown size={17} aria-hidden />
+                <span>แพ็กเกจ</span>
               </Link>
               <button className="btn btn-primary" onClick={onLogin}>
-                เข้าสู่ระบบ / สมัคร
+                เข้าสู่ระบบ<span className="wide-only"> / สมัคร</span>
               </button>
             </>
           ) : (
@@ -173,7 +174,7 @@ export default function Lobby({
           <button className="icon-btn" onClick={onReport} aria-label="แจ้งปัญหา" title="แจ้งปัญหา">
             <Bug size={19} />
           </button>
-          <button className="btn btn-primary" onClick={onCreate}>
+          <button className="btn btn-primary btn-collapse" onClick={onCreate} aria-label="สร้างตัวละคร">
             <Plus size={18} weight="bold" />
             <span>สร้างตัวละคร</span>
           </button>

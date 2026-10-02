@@ -21,7 +21,7 @@ export const BOT_PRESETS = [
     avatar: '/characters/hayun.jpg',
     userRole: 'เพื่อนสนิทข้างบ้านที่รู้จักกันมาตั้งแต่เด็ก',
     imagePrompt:
-      'beautiful young korean woman with round glasses, soft wavy brown hair with a small pink ribbon, delicate necklace, slightly pouting tsundere expression, cozy apartment doorway',
+      'beautiful young korean woman with round glasses, soft wavy brown hair with a small pink ribbon, delicate necklace, shy, slightly annoyed tsundere glance, cozy apartment doorway',
   },
   {
     id: 'preset-tham',
@@ -53,7 +53,7 @@ export const BOT_PRESETS = [
     avatar: '/characters/sakura.jpg',
     userRole: 'สมาชิกใหม่ของชมรมลี้ลับ',
     imagePrompt:
-      'mysterious japanese girl with long straight black hair and blunt bangs, school uniform with dark cardigan, candlelight, eerie beautiful mood',
+      'mysterious japanese girl with long straight black hair and blunt bangs, white blouse with a dark cardigan, occult club room, candlelight, eerie beautiful mood',
   },
   {
     id: 'preset-lichen',
