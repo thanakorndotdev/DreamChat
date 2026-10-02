@@ -16,6 +16,11 @@ so the browser stays on one origin per app. The admin app stamps `ADMIN_PROXY_SE
 forwards and only forwards sign-in plus `/api/admin/*`; the api refuses admin endpoints without it,
 and the web app refuses to forward them at all.
 
+The public site starts with a landing page at `/`, including current packages from the billing API.
+The character catalog and private chats live at `/chat`; `/chat?login=1` opens sign-in directly.
+Package links lead to `/membership`, which supports signing in, completing consent and redeeming codes.
+Paid checkout is available when the existing Stripe configuration is enabled.
+
 ## Develop
 
 ```sh
@@ -38,6 +43,28 @@ Fill in `.env` (see `.env.example`), then from the repository root:
 
 ```sh
 npm run docker:up      # docker compose --project-directory . -f docker/docker-compose.yml --profile tunnel up -d --build
+```
+
+## Admin console
+
+The admin app runs separately from the public site and is reachable over the server's tailnet on
+port `3201`. To publish it through a dedicated Cloudflare Tunnel:
+
+1. Create a Cloudflared tunnel in Cloudflare Zero Trust.
+2. Add the public hostname `admin.longrakchat.com` with service `http://admin:3000`.
+3. Add a Cloudflare Access self-hosted application for `admin.longrakchat.com` and restrict it to
+   the people who operate the site.
+4. Put its token in the root `.env` as `CLOUDFLARE_ADMIN_TUNNEL_TOKEN=...` and run:
+
+   ```sh
+   sh scripts/start-admin-tunnel.sh
+   ```
+
+The script refuses to start when the token is missing. The admin tunnel is independent from the
+public-site tunnel, and the API has no public hostname. To grant an existing account access:
+
+```sh
+docker compose --project-directory . -f docker/docker-compose.yml exec api node scripts/make-admin.mjs <username>
 ```
 
 Moving an existing SQLite install over: see `MIGRATE-POSTGRES.md`.

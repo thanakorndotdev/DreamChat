@@ -6,6 +6,10 @@ import { ArrowLeft, Check, Crown } from '@phosphor-icons/react';
 import type { BillingState } from '@longrak/shared/api-types';
 import { useToast } from '@longrak/shared/components/Toast';
 import { INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
+import AuthScreen from '@/components/AuthScreen';
+import ConsentScreen from '@/components/ConsentScreen';
+import SiteFooter from '@/components/SiteFooter';
+import { useAuth } from '@/lib/store';
 
 type Discount = { code: string; duration: 'once' | 'forever'; prices: Record<string, number> };
 
@@ -22,6 +26,8 @@ function limits(p: Plan) {
 const dateTh = (ts: number) => new Date(ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
 
 export default function MembershipPage() {
+  const auth = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
   const [state, setState] = useState<BillingState | null | undefined>(undefined);
   const [code, setCode] = useState('');
   const [discount, setDiscount] = useState<Discount | null>(null);
@@ -54,9 +60,10 @@ export default function MembershipPage() {
       }, 2000);
       return () => clearInterval(t);
     }
-  }, [load]);
+  }, [load, auth.me?.username, auth.me?.needsConsent]);
 
   const applyCode = async () => {
+    if (state?.guest) return setLoginOpen(true);
     setCodeError(null);
     setBusy('code');
     try {
@@ -91,14 +98,17 @@ export default function MembershipPage() {
     }
   };
 
-  if (state === undefined) return null;
+  if (auth.me?.username && auth.me.needsConsent) {
+    return <ConsentScreen username={auth.me.username} email={auth.me.email} phone={auth.me.phone} birthdate={auth.me.birthdate} guardianConsent={auth.me.guardianConsent} onSubmit={auth.consent} onLogout={auth.logout} />;
+  }
+
+  if (state === undefined) return <main className="admin-denied" aria-live="polite"><p>กำลังโหลดแพ็กเกจ…</p></main>;
   if (state === null) {
     return (
       <main className="admin-denied">
-        <p className="empty-title">เข้าสู่ระบบก่อนดูแพ็กเกจ</p>
-        <Link className="btn btn-primary" href="/">
-          ไปหน้าเข้าสู่ระบบ
-        </Link>
+        <p className="empty-title">โหลดแพ็กเกจไม่สำเร็จ</p>
+        <button className="btn btn-primary" onClick={load}>ลองอีกครั้ง</button>
+        <Link className="link" href="/">กลับหน้าแรก</Link>
       </main>
     );
   }
@@ -109,18 +119,18 @@ export default function MembershipPage() {
   return (
     <div className="membership">
       <header className="topbar">
-        <Link className="icon-btn" href="/" aria-label="กลับหน้าแรก">
+        <Link className="icon-btn" href="/chat" aria-label="กลับหน้าแชท">
           <ArrowLeft size={20} />
         </Link>
         <div className="brand">
-          <span className="brand-mark">หลงรักแชท</span>
+          <Link className="brand-mark" href="/">หลงรักแชท</Link>
         </div>
       </header>
 
       <main className="membership-main">
         <h1 className="membership-title">เลือกแพ็กเกจที่ใช่สำหรับเรื่องของคุณ</h1>
         <p className="membership-now">
-          ตอนนี้คุณใช้ <strong>{state.plan.name}</strong>
+          {state.guest ? <>เลือกแพ็กเกจที่สนใจ แล้วเข้าสู่ระบบเพื่อสมัครหรือใช้โค้ด</> : <>ตอนนี้คุณใช้ <strong>{state.plan.name}</strong></>}
           {sub && (
             <>
               {' '}
@@ -128,16 +138,16 @@ export default function MembershipPage() {
               {sub.status === 'past_due' && ' (ตัดบัตรไม่ผ่าน อัปเดตบัตรเพื่อใช้ต่อ)'}
             </>
           )}
-          {state.plan.features.dailyMessages > 0 && `, วันนี้คุยไป ${state.usage.chat}/${state.plan.features.dailyMessages} ข้อความ`}
+          {!state.guest && state.plan.features.dailyMessages > 0 && `, วันนี้คุยไป ${state.usage.chat}/${state.plan.features.dailyMessages} ข้อความ`}
         </p>
         {paid && state.plan.level === 0 && <p className="settings-ok">ชำระเงินสำเร็จ กำลังเปิดใช้แพ็กเกจ รอสักครู่…</p>}
 
         <ul className="plans">
           {state.plans.map((p) => {
-            const current = state.plan.id === p.id;
+            const current = !state.guest && state.plan.id === p.id;
             const price = discount?.prices[p.id];
             return (
-              <li key={p.id} className="plan" data-level={p.level} data-current={current || undefined}>
+              <li key={p.id} id={`plan-${p.id}`} className="plan" data-level={p.level} data-current={current || undefined}>
                 <h2 className="plan-name">
                   {p.level > 0 && <Crown size={18} weight="fill" aria-hidden />}
                   {p.name}
@@ -173,7 +183,11 @@ export default function MembershipPage() {
                 </ul>
                 <p className="plan-limits">{limits(p).join(', ')}</p>
                 <div className="plan-foot">
-                  {current ? (
+                  {state.guest ? (
+                    <button className="btn btn-primary" onClick={() => setLoginOpen(true)}>
+                      {p.price === 0 ? 'เข้าสู่ระบบเพื่อเริ่มใช้ฟรี' : 'เข้าสู่ระบบเพื่อเลือกแพ็กเกจ'}
+                    </button>
+                  ) : current ? (
                     <span className="plan-current">แพ็กเกจปัจจุบัน</span>
                   ) : p.price === 0 ? null : viaStripe ? (
                     <button className="btn btn-ghost" onClick={() => go('/api/billing/portal', {}, 'portal')} disabled={!!busy}>
@@ -237,6 +251,14 @@ export default function MembershipPage() {
           <Link href="/terms">ข้อกำหนดการใช้งาน</Link>
         </p>
       </main>
+      <SiteFooter />
+      {loginOpen && state.guest && (
+        <AuthScreen reason="เข้าสู่ระบบหรือสมัครบัญชีเพื่อเลือกแพ็กเกจและใช้โค้ด" onClose={() => setLoginOpen(false)} onSubmit={async (mode, form) => {
+          await auth.submit(mode, form);
+          setLoginOpen(false);
+          await load();
+        }} />
+      )}
       <Toast />
     </div>
   );

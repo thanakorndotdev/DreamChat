@@ -8,6 +8,7 @@ import { STATUS_LABEL } from '@longrak/shared/catalog';
 import { type Plan, TIER_LABEL } from '@longrak/shared/plans';
 import type { CatalogCard, Submission } from '@/lib/store';
 import type { Character } from '@longrak/shared/types';
+import SiteFooter from './SiteFooter';
 
 type Props = {
   characters: Character[];
@@ -139,7 +140,7 @@ export default function Lobby({
     <div className="lobby">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">หลงรักแชท</span>
+          <Link className="brand-mark" href="/">หลงรักแชท</Link>
         </div>
         {(!empty || catalog.length > 0) && (
           <label className="search">
@@ -480,6 +481,7 @@ export default function Lobby({
           </div>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

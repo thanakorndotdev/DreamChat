@@ -161,6 +161,12 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX rate_limits_until ON rate_limits (until);
   `,
+  `
+  -- Plus and Pro move from yearly ฿799/฿999 to monthly ฿99/฿199. Only rows still at the old defaults,
+  -- so a price an admin already set is kept. Existing subscribers keep what they signed up for.
+  UPDATE plans SET price = 9900, interval = 'month' WHERE id = 'plus' AND price = 79900 AND interval = 'year';
+  UPDATE plans SET price = 19900, interval = 'month' WHERE id = 'pro' AND price = 99900 AND interval = 'year';
+  `,
 ];
 
 async function migrate(sql: Sql) {

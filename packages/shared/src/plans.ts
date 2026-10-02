@@ -41,8 +41,8 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     id: 'plus',
     name: 'Rakkao Plus',
     level: 1,
-    price: 79_900,
-    interval: 'year',
+    price: 9_900,
+    interval: 'month',
     features: { dailyMessages: 300, model: '', historyWindow: 16, memoryNotes: 15, maxCharacters: 15 },
     perks: [
       'ข้อความต่อวันเยอะกว่า Free มาก',
@@ -58,8 +58,8 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     id: 'pro',
     name: 'Rakkao Pro',
     level: 2,
-    price: 99_900,
-    interval: 'year',
+    price: 19_900,
+    interval: 'month',
     features: { dailyMessages: 0, model: '', historyWindow: 30, memoryNotes: 40, maxCharacters: 0 },
     perks: [
       'คุยได้แทบไม่จำกัด',
