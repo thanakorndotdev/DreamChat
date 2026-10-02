@@ -46,9 +46,11 @@ type Props = {
   model: string;
   onClose: () => void;
   onCreate: (c: Character) => void;
+  /** 18+ by the account's birthdate; otherwise the 18+ switch is locked. */
+  userAdult: boolean;
 };
 
-export default function CreateWizard({ host, model, onClose, onCreate }: Props) {
+export default function CreateWizard({ host, model, onClose, onCreate, userAdult }: Props) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
     setError(null);
     try {
       const { imagePrompt: p, ...draft } = await generateCharacter(
-        { host, model, outline, adult: form.adult, signal: controller.signal },
+        { host, model, outline, adult: form.adult && userAdult, signal: controller.signal },
         (chars) => setAiState({ busy: true, chars }),
       );
       // Adult mode needs an adult character; the model occasionally ignores that.
@@ -178,7 +180,7 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
       userGender: form.userGender,
       userAge: form.userAge.trim(),
       userJob: form.userJob.trim(),
-      adult: form.adult,
+      adult: form.adult && userAdult,
       avatar,
       messages: [{ sender: 'char', text: firstMessage }],
       updatedAt: Date.now(),
@@ -311,7 +313,8 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
           <label className="toggle">
             <input
               type="checkbox"
-              checked={form.adult}
+              checked={form.adult && userAdult}
+              disabled={!userAdult}
               onChange={(e) => {
                 setForm((f) => ({ ...f, adult: e.target.checked }));
                 setError(null);
@@ -319,7 +322,11 @@ export default function CreateWizard({ host, model, onClose, onCreate }: Props) 
             />
             <span>
               <span className="toggle-title">โหมดหยาบ 18+</span>
-              <span className="help">ตัวละครจะพูด กู/มึง ด่าและสบถใส่คุณ เล่นเนื้อหาผู้ใหญ่ได้ ถ้าไม่ติ๊กจะคุยสุภาพตามบท (เปิด/ปิดทีหลังในห้องแชทได้)</span>
+              <span className={userAdult ? 'help' : 'help warn'}>
+                {userAdult
+                  ? 'ตัวละครจะพูด กู/มึง ด่าและสบถใส่คุณ เล่นเนื้อหาผู้ใหญ่ได้ ถ้าไม่ติ๊กจะคุยสุภาพตามบท (เปิด/ปิดทีหลังในห้องแชทได้)'
+                  : 'ใช้ได้เฉพาะบัญชีที่อายุ 18 ปีขึ้นไปตามวันเกิด'}
+              </span>
             </span>
           </label>
         </div>

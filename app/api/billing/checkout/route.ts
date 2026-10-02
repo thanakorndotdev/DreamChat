@@ -7,7 +7,11 @@ import { appUrl, stripe, stripeConfigured } from '@/lib/server/stripe';
 async function customerFor(user: { id: number; username: string; email: string | null; phone: string | null }) {
   const sql = await db();
   const [row] = await sql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM users WHERE id = ${user.id}`;
-  if (row.stripe_customer_id) return row.stripe_customer_id;
+  if (row.stripe_customer_id) {
+    // A customer made with test keys doesn't exist once live keys are in, and vice versa.
+    const found = await stripe<{ deleted?: boolean }>('GET', `customers/${row.stripe_customer_id}`).catch(() => null);
+    if (found && !found.deleted) return row.stripe_customer_id;
+  }
   const customer = await stripe<{ id: string }>('POST', 'customers', {
     email: user.email ?? undefined,
     phone: user.phone ?? undefined,

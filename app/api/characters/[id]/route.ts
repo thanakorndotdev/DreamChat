@@ -4,6 +4,14 @@ import { db } from '@/lib/server/db';
 
 const MAX_BYTES = 2_000_000;
 
+/** Postgres jsonb can't hold the NUL character; drop it rather than failing the save. */
+function stripNul(v: unknown): unknown {
+  if (typeof v === 'string') return v.replaceAll('\0', '');
+  if (Array.isArray(v)) return v.map(stripNul);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, stripNul(x)]));
+  return v;
+}
+
 export async function PUT(req: Request, ctx: RouteContext<'/api/characters/[id]'>) {
   const user = await requireMember();
   if (user instanceof Response) return user;
@@ -33,7 +41,7 @@ export async function PUT(req: Request, ctx: RouteContext<'/api/characters/[id]'
 
   const updatedAt = typeof character.updatedAt === 'number' ? Math.floor(character.updatedAt) : Date.now();
   await sql`
-    INSERT INTO characters (user_id, id, data, updated_at) VALUES (${user.id}, ${id}, ${raw}::jsonb, ${updatedAt})
+    INSERT INTO characters (user_id, id, data, updated_at) VALUES (${user.id}, ${id}, ${sql.json(stripNul(character) as Parameters<typeof sql.json>[0])}, ${updatedAt})
     ON CONFLICT (user_id, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`;
   return new Response(null, { status: 204 });
 }

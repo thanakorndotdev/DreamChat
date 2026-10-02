@@ -16,7 +16,9 @@ export function parseHost(raw: unknown): string | null {
  * fetch any URL a visitor sends (SSRF into the host's private network).
  */
 export function resolveHost(raw: unknown): string | null {
-  return process.env.OLLAMA_URL ? parseHost(process.env.OLLAMA_URL) : parseHost(raw);
+  if (process.env.OLLAMA_URL) return parseHost(process.env.OLLAMA_URL);
+  // Only a local `next dev` may point at a host from the browser; a deployed server without OLLAMA_URL has no Ollama.
+  return process.env.NODE_ENV === 'development' ? parseHost(raw) : null;
 }
 
 export const OFFLINE_HINT = 'ติดต่อเซิร์ฟเวอร์ AI ไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่';

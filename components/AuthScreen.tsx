@@ -2,13 +2,35 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { X } from '@phosphor-icons/react';
+import { GUARDIAN_UNDER, ageFromBirthdate, todayTh } from '@/lib/age';
 import type { RegisterForm } from '@/lib/store';
 
 type Mode = 'login' | 'register';
 
-export default function AuthScreen({ onSubmit }: { onSubmit: (mode: Mode, form: RegisterForm) => Promise<void> }) {
+export default function AuthScreen({
+  onSubmit,
+  reason,
+  onClose,
+}: {
+  onSubmit: (mode: Mode, form: RegisterForm) => Promise<void>;
+  /** Why sign-in is needed right now, e.g. "เข้าสู่ระบบเพื่อเริ่มคุยกับไอริส". */
+  reason?: string;
+  /** Shown over the page with a close button when given; otherwise it's the whole page. */
+  onClose?: () => void;
+}) {
   const [mode, setMode] = useState<Mode>('login');
-  const [form, setForm] = useState<RegisterForm>({ username: '', password: '', email: '', phone: '', consent: false, marketing: false });
+  const [form, setForm] = useState<RegisterForm>({
+    username: '',
+    password: '',
+    email: '',
+    phone: '',
+    birthdate: '',
+    guardian: false,
+    consent: false,
+    marketing: false,
+  });
+  const age = ageFromBirthdate(form.birthdate);
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,6 +49,8 @@ export default function AuthScreen({ onSubmit }: { onSubmit: (mode: Mode, form: 
     if (mode === 'register') {
       if (form.password !== confirm) return setError('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
       if (!form.email.trim() || !form.phone.trim()) return setError('กรอกอีเมลและเบอร์โทร');
+      if (age === null) return setError('กรอกวันเกิด');
+      if (age < GUARDIAN_UNDER && !form.guardian) return setError('อายุต่ำกว่า 20 ปี ต้องให้ผู้ปกครองรับทราบและยินยอมก่อน');
       if (!form.consent) return setError('ติ๊กยอมรับนโยบายความเป็นส่วนตัวและข้อกำหนดการใช้งานก่อนสมัคร');
     }
     setBusy(true);
@@ -40,11 +64,24 @@ export default function AuthScreen({ onSubmit }: { onSubmit: (mode: Mode, form: 
   };
 
   return (
-    <main className="auth">
+    <main
+      className={onClose ? 'auth auth-overlay' : 'auth'}
+      onMouseDown={onClose ? (e) => e.target === e.currentTarget && onClose() : undefined}
+      role={onClose ? 'dialog' : undefined}
+      aria-modal={onClose ? true : undefined}
+      aria-label={onClose ? 'เข้าสู่ระบบ' : undefined}
+    >
       <form className="auth-card" onSubmit={submit}>
-        <p className="brand-mark">หลงรักแชท</p>
+        <div className="auth-top">
+          <p className="brand-mark">หลงรักแชท</p>
+          {onClose && (
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="ปิด">
+              <X size={18} weight="bold" />
+            </button>
+          )}
+        </div>
         <p className="auth-lead">
-          {mode === 'login' ? 'เข้าสู่ระบบเพื่ออ่านและเขียนเรื่องต่อกับตัวละครของคุณ' : 'สมัครบัญชี แชทของคุณเป็นความลับ เห็นได้เฉพาะคุณ'}
+          {reason ?? (mode === 'login' ? 'เข้าสู่ระบบเพื่ออ่านและเขียนเรื่องต่อกับตัวละครของคุณ' : 'สมัครบัญชี แชทของคุณเป็นความลับ เห็นได้เฉพาะคุณ')}
         </p>
 
         <div className="auth-tabs" role="tablist">
@@ -69,7 +106,7 @@ export default function AuthScreen({ onSubmit }: { onSubmit: (mode: Mode, form: 
             onChange={(e) => set('password', e.target.value)}
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
-          {mode === 'register' && <span className="help">อย่างน้อย 6 ตัว</span>}
+          {mode === 'register' && <span className="help">อย่างน้อย 8 ตัว</span>}
         </label>
         {mode === 'register' && (
           <>
@@ -86,6 +123,12 @@ export default function AuthScreen({ onSubmit }: { onSubmit: (mode: Mode, form: 
               <span className="field-label">เบอร์โทร</span>
               <input type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} autoComplete="tel" inputMode="tel" placeholder="0812345678" />
             </label>
+            <BirthdateField
+              value={form.birthdate}
+              guardian={form.guardian}
+              onChange={(v) => set('birthdate', v)}
+              onGuardian={(v) => set('guardian', v)}
+            />
             <ConsentChecks consent={form.consent} marketing={form.marketing} onChange={(k, v) => set(k, v)} />
           </>
         )}
@@ -134,5 +177,41 @@ export function ConsentChecks({
         <span>ยินยอมรับข่าวสารและโปรโมชันทางอีเมลหรือ SMS (ไม่บังคับ ยกเลิกได้ทุกเมื่อ)</span>
       </label>
     </div>
+  );
+}
+
+/** Real date of birth: decides 18+ mode, and asks for a guardian's consent under 20 (PDPA). */
+export function BirthdateField({
+  value,
+  guardian,
+  onChange,
+  onGuardian,
+}: {
+  value: string;
+  guardian: boolean;
+  onChange: (v: string) => void;
+  onGuardian: (v: boolean) => void;
+}) {
+  const age = ageFromBirthdate(value);
+  return (
+    <>
+      <label className="field">
+        <span className="field-label">วันเกิด</span>
+        <input type="date" value={value} onChange={(e) => onChange(e.target.value)} max={todayTh()} min="1900-01-01" autoComplete="bday" />
+        <span className="help">
+          {age === null
+            ? 'ใช้วันเกิดจริง ระบบใช้เปิดโหมด 18+ และแก้เองภายหลังไม่ได้'
+            : `อายุ ${age} ปี${age < 18 ? ' ใช้โหมด 18+ ไม่ได้' : ''}`}
+        </span>
+      </label>
+      {age !== null && age < GUARDIAN_UNDER && (
+        <label className="consent-row consent-guardian">
+          <input type="checkbox" checked={guardian} onChange={(e) => onGuardian(e.target.checked)} />
+          <span>
+            ผู้ปกครองของฉันรับทราบและยินยอมให้ใช้บริการนี้ และให้เก็บข้อมูลตามนโยบายความเป็นส่วนตัว <span className="req">(จำเป็นสำหรับผู้ที่อายุต่ำกว่า 20 ปี)</span>
+          </span>
+        </label>
+      )}
+    </>
   );
 }

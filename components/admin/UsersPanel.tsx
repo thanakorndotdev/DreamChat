@@ -78,6 +78,7 @@ export default function UsersPanel({ toast }: Props) {
               <th>ชื่อผู้ใช้</th>
               <th>ติดต่อ</th>
               <th>แพ็กเกจ</th>
+              <th>อายุ</th>
               <th>สิทธิ์</th>
               <th>เรื่อง</th>
               <th>PDPA</th>
@@ -103,6 +104,10 @@ export default function UsersPanel({ toast }: Props) {
                   ) : (
                     'Free'
                   )}
+                </td>
+                <td data-label="อายุ">
+                  {u.age === null ? 'ยังไม่ระบุ' : `${u.age} ปี`}
+                  {u.age !== null && u.age < 18 && <span className="admin-char-meta"> ห้าม 18+</span>}
                 </td>
                 <td data-label="สิทธิ์">{u.isAdmin ? <span className="admin-badge">แอดมิน</span> : 'ผู้ใช้'}</td>
                 <td data-label="เรื่อง">{u.characters}</td>
@@ -162,6 +167,8 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
   const [grantPlan, setGrantPlan] = useState('');
   const [grantDays, setGrantDays] = useState('30');
   const [revoke, setRevoke] = useState(false);
+  const [birthdate, setBirthdate] = useState(user?.birthdate ?? '');
+  const [guardian, setGuardian] = useState(user?.guardianConsent ?? false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -179,9 +186,11 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
       if (password) changes.password = password;
       if (email.trim() !== (user.email ?? '')) changes.email = email;
       if (phone.trim() !== (user.phone ?? '')) changes.phone = phone;
+      if (birthdate !== (user.birthdate ?? '')) changes.birthdate = birthdate;
+      if (guardian !== user.guardianConsent) changes.guardianConsent = guardian;
       if (revoke) changes.revoke = true;
       else if (grantPlan) changes.grant = { planId: grantPlan, days: Number(grantDays) };
-      if (!user.envAdmin && isAdmin !== user.isAdmin) changes.isAdmin = isAdmin;
+      if (isAdmin !== user.isAdmin) changes.isAdmin = isAdmin;
       // A new password should lock out whoever is signed in with the old one.
       if (signOut || password) changes.signOut = true;
       if (Object.keys(changes).length) await adminFetch(`/api/admin/users/${user.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
@@ -216,7 +225,7 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
         <label className="field">
           <span className="field-label">{user ? 'รหัสผ่านใหม่' : 'รหัสผ่าน'}</span>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-          <span className="help">{user ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน ตั้งใหม่แล้วทุกเครื่องที่ล็อกอินอยู่จะถูกออกจากระบบ' : 'อย่างน้อย 6 ตัว'}</span>
+          <span className="help">{user ? 'เว้นว่างไว้ถ้าไม่เปลี่ยน ตั้งใหม่แล้วทุกเครื่องที่ล็อกอินอยู่จะถูกออกจากระบบ' : 'อย่างน้อย 8 ตัว'}</span>
         </label>
         <div className="grid-2">
           <label className="field">
@@ -228,6 +237,21 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
           </label>
         </div>
+        {user && (
+          <div className="grid-2">
+            <label className="field">
+              <span className="field-label">วันเกิด</span>
+              <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} />
+              <span className="help">
+                {user.age === null ? 'ยังไม่ระบุ ผู้ใช้จะถูกขอให้กรอกตอนเข้าใช้' : `อายุ ${user.age} ปี${user.age < 18 ? ' ใช้โหมด 18+ ไม่ได้' : ''}`}. แก้เมื่อผู้ใช้แจ้งว่ากรอกผิดเท่านั้น
+              </span>
+            </label>
+            <label className="editor-check guardian-check">
+              <input type="checkbox" checked={guardian} onChange={(e) => setGuardian(e.target.checked)} />
+              ผู้ปกครองยินยอมแล้ว (จำเป็นถ้าอายุต่ำกว่า 20 ปี)
+            </label>
+          </div>
+        )}
         {user && (
           <fieldset className="field grant">
             <legend className="field-label">แพ็กเกจ</legend>
@@ -263,10 +287,10 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
           </fieldset>
         )}
         <label className="toggle admin-toggle">
-          <input type="checkbox" checked={isAdmin} disabled={user?.envAdmin} onChange={(e) => setIsAdmin(e.target.checked)} />
+          <input type="checkbox" checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)} />
           <span>
             <span className="toggle-title">สิทธิ์แอดมิน</span>
-            <span className="help">{user?.envAdmin ? 'บัญชีนี้อยู่ใน ADMIN_USERNAMES เปลี่ยนได้ที่ env เท่านั้น' : 'เข้าหน้านี้และแก้ไขข้อมูลของทุกคนได้'}</span>
+            <span className="help">เข้าหน้านี้และแก้ไขข้อมูลของทุกคนได้</span>
           </span>
         </label>
         {user && user.sessions > 0 && (

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
+import { ADULT_AGE, GUARDIAN_UNDER, ageFromBirthdate } from '../age';
 import { CONSENT_VERSION } from '../legal';
 import { db } from './db';
 
@@ -16,10 +17,15 @@ export type User = {
   email: string | null;
   phone: string | null;
   consentVersion: number;
+  birthdate: string | null;
+  guardianConsent: boolean;
+  /** Real age from the birthdate; null until it's filled in. */
+  age: number | null;
 };
 
 export const USERNAME_RULE = /^[\p{L}\p{M}\p{N}_.-]{3,32}$/u;
-export const PASSWORD_MIN = 6;
+/** New passwords only; older accounts keep signing in with what they have until they change it. */
+export const PASSWORD_MIN = 8;
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
@@ -71,18 +77,23 @@ export async function currentUser(): Promise<User | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const sql = await db();
-  const [row] = await sql<{ id: number; username: string; is_admin: boolean; email: string | null; phone: string | null; consent_version: number }[]>`
-    SELECT users.id, users.username, users.is_admin, users.email, users.phone, users.consent_version
+  const [row] = await sql<
+    { id: number; username: string; is_admin: boolean; email: string | null; phone: string | null; consent_version: number; birthdate: string | null; guardian_consent: boolean }[]
+  >`
+    SELECT users.id, users.username, users.is_admin, users.email, users.phone, users.consent_version, users.birthdate, users.guardian_consent
     FROM sessions JOIN users ON users.id = sessions.user_id
     WHERE sessions.token_hash = ${sha256(token)} AND sessions.expires_at > ${Date.now()}`;
   return row
     ? {
         id: row.id,
         username: row.username,
-        isAdmin: row.is_admin || envAdmin(row.username),
+        isAdmin: row.is_admin,
         email: row.email,
         phone: row.phone,
         consentVersion: row.consent_version,
+        birthdate: row.birthdate,
+        guardianConsent: row.guardian_consent,
+        age: ageFromBirthdate(row.birthdate),
       }
     : null;
 }
@@ -91,8 +102,12 @@ export const UNAUTHORIZED = () => new Response('กรุณาเข้าส�
 
 /** Accounts from before PDPA consent (or missing email/phone) must finish that step before using the app. */
 export function needsConsent(user: User) {
-  return user.consentVersion < CONSENT_VERSION || !user.email || !user.phone;
+  if (user.consentVersion < CONSENT_VERSION || !user.email || !user.phone || user.age === null) return true;
+  return user.age < GUARDIAN_UNDER && !user.guardianConsent;
 }
+
+/** 18+ mode is decided here, from the account's real birthdate, never by anything the browser sends. */
+export const isAdultUser = (user: User) => user.age !== null && user.age >= ADULT_AGE;
 
 /** The signed-in account that has accepted the current terms, or the response to send back. */
 export async function requireMember(): Promise<User | Response> {
@@ -100,13 +115,6 @@ export async function requireMember(): Promise<User | Response> {
   if (!user) return UNAUTHORIZED();
   if (needsConsent(user)) return new Response('กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนใช้งาน', { status: 403 });
   return user;
-}
-
-/** Usernames in ADMIN_USERNAMES (comma separated) are always admins, so there is a way in before anyone is promoted. */
-export function envAdmin(username: string) {
-  return (process.env.ADMIN_USERNAMES ?? '')
-    .split(',')
-    .some((n) => n.trim() && n.trim().toLowerCase() === username.toLowerCase());
 }
 
 /** The signed-in admin, or the response to send back when the caller isn't one. */
@@ -117,22 +125,9 @@ export async function requireAdmin(): Promise<User | Response> {
   return user;
 }
 
-/** In-memory brake on password guessing: 10 failures per username per 15 minutes. */
-const failures = new Map<string, { count: number; until: number }>();
-const WINDOW = 15 * 60_000;
-
-export function isLockedOut(username: string) {
-  const f = failures.get(username.toLowerCase());
-  return !!f && f.until > Date.now() && f.count >= 10;
-}
-
-export function recordFailure(username: string) {
-  const key = username.toLowerCase();
-  const f = failures.get(key);
-  const fresh = !f || f.until < Date.now();
-  failures.set(key, { count: fresh ? 1 : f.count + 1, until: fresh ? Date.now() + WINDOW : f.until });
-}
-
-export function clearFailures(username: string) {
-  failures.delete(username.toLowerCase());
+/** Hash of a throwaway password, checked when the username doesn't exist so both cases take as long. */
+let decoy: Promise<string> | null = null;
+export async function verifyDecoy(password: string) {
+  decoy ??= hashPassword(randomBytes(12).toString('hex'));
+  await verifyPassword(password, await decoy);
 }

@@ -1,7 +1,9 @@
 import { OFFLINE_HINT, resolveHost } from '@/lib/host';
+import { UNAUTHORIZED, currentUser } from '@/lib/server/auth';
 import { workersAi } from '@/lib/workersAi';
 
 export async function GET(req: Request) {
+  if (!(await currentUser())) return UNAUTHORIZED();
   const cf = await workersAi();
   if (cf) return Response.json({ models: [cf.model] });
 

@@ -1,5 +1,6 @@
 import { requireMember } from '@/lib/server/auth';
-import { couponProblem, discounted, getCoupon, getPlan, getSubscription, isLive, listPlans, recordRedemption, setSubscription } from '@/lib/server/billing';
+import { couponProblem, discounted, getCoupon, getPlan, getSubscription, isLive, listPlans } from '@/lib/server/billing';
+import { db } from '@/lib/server/db';
 
 /**
  * Checks a code. A free-days code is applied on the spot; a discount code comes back with the
@@ -25,8 +26,27 @@ export async function POST(req: Request) {
     // Same plan stacks on top of the days left; a different plan starts today.
     const from = sub && isLive(sub) && sub.planId === plan.id ? sub.currentPeriodEnd : Date.now();
     const until = from + coupon.value * 86_400_000;
-    await setSubscription(user.id, { planId: plan.id, source: 'code', status: 'active', currentPeriodEnd: until, cancelAtPeriodEnd: true, stripeSubscriptionId: null });
-    await recordRedemption(coupon.code, user.id);
+
+    // Lock the code's row so two people redeeming the last use at once can't both get it.
+    const sql = await db();
+    const granted = await sql.begin(async (tx) => {
+      const [locked] = await tx<{ max_redemptions: number | null }[]>`SELECT max_redemptions FROM coupons WHERE code = ${coupon.code} AND active FOR UPDATE`;
+      if (!locked) return 'ไม่พบโค้ดนี้ หรือโค้ดถูกปิดใช้แล้ว';
+      const [{ n }] = await tx<{ n: number }[]>`SELECT count(*) AS n FROM coupon_redemptions WHERE code = ${coupon.code}`;
+      if (locked.max_redemptions !== null && n >= locked.max_redemptions) return 'โค้ดนี้มีคนใช้ครบจำนวนแล้ว';
+      const inserted = await tx`
+        INSERT INTO coupon_redemptions (code, user_id, at) VALUES (${coupon.code}, ${user.id}, ${Date.now()})
+        ON CONFLICT DO NOTHING RETURNING 1`;
+      if (!inserted.length) return 'บัญชีนี้ใช้โค้ดนี้ไปแล้ว';
+      await tx`
+        INSERT INTO subscriptions (user_id, plan_id, source, status, current_period_end, cancel_at_period_end, stripe_subscription_id, updated_at)
+        VALUES (${user.id}, ${plan.id}, 'code', 'active', ${until}, true, null, ${Date.now()})
+        ON CONFLICT (user_id) DO UPDATE SET plan_id = excluded.plan_id, source = excluded.source, status = excluded.status,
+          current_period_end = excluded.current_period_end, cancel_at_period_end = excluded.cancel_at_period_end,
+          stripe_subscription_id = null, updated_at = excluded.updated_at`;
+      return true;
+    });
+    if (granted !== true) return new Response(granted, { status: 400 });
     return Response.json({ kind: 'granted', plan: plan.name, until });
   }
 

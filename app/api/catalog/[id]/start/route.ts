@@ -1,5 +1,5 @@
 import { TIER_LABEL } from '@/lib/plans';
-import { requireMember } from '@/lib/server/auth';
+import { isAdultUser, requireMember } from '@/lib/server/auth';
 import { effectivePlan } from '@/lib/server/billing';
 import { getEntry } from '@/lib/server/catalog';
 import { db } from '@/lib/server/db';
@@ -12,6 +12,7 @@ export async function POST(_req: Request, ctx: RouteContext<'/api/catalog/[id]/s
   const entry = await getEntry((await ctx.params).id);
   if (!entry || entry.status !== 'published') return new Response('ไม่พบตัวละครนี้ หรือยังไม่เปิดให้คุย', { status: 404 });
 
+  if (entry.sheet.adult && !isAdultUser(user)) return new Response('ตัวละครนี้สำหรับผู้ที่อายุ 18 ปีขึ้นไป', { status: 403 });
   const plan = await effectivePlan(user.id);
   if (entry.tier > plan.level) {
     return new Response(`ตัวละครนี้สำหรับสมาชิก ${TIER_LABEL[entry.tier] ?? 'พรีเมียม'} อัปเกรดแพ็กเกจเพื่อคุยได้`, { status: 402 });

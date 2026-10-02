@@ -83,13 +83,34 @@ export async function usageToday(userId: number) {
   return r ?? { chat: 0, other: 0 };
 }
 
-export async function countUsage(userId: number, kind: 'chat' | 'other') {
+/**
+ * Takes one unit of today's allowance before the AI call, in a single statement, so parallel
+ * requests can't all pass the check and overshoot the limit. `limit` 0 means unlimited.
+ * Returns false when the allowance is used up.
+ */
+export async function reserveUsage(userId: number, kind: 'chat' | 'other', limit: number): Promise<boolean> {
   const sql = await db();
-  if (kind === 'chat') {
-    await sql`INSERT INTO usage (user_id, day, chat) VALUES (${userId}, ${today()}, 1) ON CONFLICT (user_id, day) DO UPDATE SET chat = usage.chat + 1`;
-  } else {
-    await sql`INSERT INTO usage (user_id, day, other) VALUES (${userId}, ${today()}, 1) ON CONFLICT (user_id, day) DO UPDATE SET other = usage.other + 1`;
-  }
+  const day = today();
+  const rows =
+    kind === 'chat'
+      ? await sql`
+          INSERT INTO usage (user_id, day, chat) VALUES (${userId}, ${day}, 1)
+          ON CONFLICT (user_id, day) DO UPDATE SET chat = usage.chat + 1
+          WHERE ${limit} = 0 OR usage.chat < ${limit}
+          RETURNING chat`
+      : await sql`
+          INSERT INTO usage (user_id, day, other) VALUES (${userId}, ${day}, 1)
+          ON CONFLICT (user_id, day) DO UPDATE SET other = usage.other + 1
+          WHERE ${limit} = 0 OR usage.other < ${limit}
+          RETURNING other`;
+  return rows.length > 0;
+}
+
+/** Gives the unit back when the AI call failed, so errors don't eat the allowance. */
+export async function releaseUsage(userId: number, kind: 'chat' | 'other') {
+  const sql = await db();
+  if (kind === 'chat') await sql`UPDATE usage SET chat = greatest(chat - 1, 0) WHERE user_id = ${userId} AND day = ${today()}`;
+  else await sql`UPDATE usage SET other = greatest(other - 1, 0) WHERE user_id = ${userId} AND day = ${today()}`;
 }
 
 // ---------- coupons ----------

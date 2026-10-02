@@ -6,17 +6,21 @@ import { ArrowLeft } from '@phosphor-icons/react';
 import CatalogPanel from '@/components/admin/CatalogPanel';
 import CouponsPanel from '@/components/admin/CouponsPanel';
 import PlansPanel from '@/components/admin/PlansPanel';
+import ReportsPanel from '@/components/admin/ReportsPanel';
+import SecurityPanel from '@/components/admin/SecurityPanel';
 import SettingsPanel from '@/components/admin/SettingsPanel';
 import UsersPanel from '@/components/admin/UsersPanel';
 import { useToast } from '@/components/Toast';
 
-type Tab = 'users' | 'catalog' | 'plans' | 'coupons' | 'settings';
+type Tab = 'users' | 'catalog' | 'reports' | 'plans' | 'coupons' | 'security' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'users', label: 'ผู้ใช้' },
   { id: 'catalog', label: 'คลังตัวละคร' },
+  { id: 'reports', label: 'แจ้งปัญหา' },
   { id: 'plans', label: 'แพ็กเกจ' },
   { id: 'coupons', label: 'โค้ดส่วนลด' },
+  { id: 'security', label: 'ความปลอดภัย' },
   { id: 'settings', label: 'ตั้งค่าระบบ' },
 ];
 
@@ -74,8 +78,10 @@ export default function AdminPage() {
 
         {tab === 'users' && <UsersPanel toast={toast} />}
         {tab === 'catalog' && <CatalogPanel toast={toast} />}
+        {tab === 'reports' && <ReportsPanel toast={toast} />}
         {tab === 'plans' && <PlansPanel toast={toast} />}
         {tab === 'coupons' && <CouponsPanel toast={toast} />}
+        {tab === 'security' && <SecurityPanel toast={toast} />}
         {tab === 'settings' && <SettingsPanel toast={toast} />}
       </main>
       <Toast />

@@ -31,8 +31,11 @@ function normalize(list: Character[]): Character[] {
   });
 }
 
-/** Characters saved in this browser before accounts existed; handed to the first account that signs in empty. */
-function takeLocalCharacters(): Character[] | null {
+/**
+ * Characters saved in this browser before accounts existed. Never moved into an account on its own:
+ * on a shared computer they may belong to someone else, so the person is asked first.
+ */
+function readLocalCharacters(): Character[] | null {
   const saved = read(CHARS_KEY);
   if (!saved) return null;
   try {
@@ -50,9 +53,27 @@ export type Me = {
   needsConsent: boolean;
   email: string | null;
   phone: string | null;
+  birthdate: string | null;
+  age: number | null;
+  /** 18+ by birthdate, as decided by the server. */
+  adult: boolean;
+  guardianConsent: boolean;
 };
 
-export type RegisterForm = { username: string; password: string; email: string; phone: string; consent: boolean; marketing: boolean };
+const SIGNED_OUT: Me = { username: null, isAdmin: false, needsConsent: false, email: null, phone: null, birthdate: null, age: null, adult: false, guardianConsent: false };
+
+export type RegisterForm = {
+  username: string;
+  password: string;
+  email: string;
+  phone: string;
+  birthdate: string;
+  guardian: boolean;
+  consent: boolean;
+  marketing: boolean;
+};
+
+export type ConsentForm = { consent: boolean; marketing: boolean; email?: string; phone?: string; birthdate?: string; guardian?: boolean };
 
 export function useAuth() {
   /** undefined while checking the session. */
@@ -63,7 +84,7 @@ export function useAuth() {
       fetch('/api/auth/me')
         .then((r) => r.json() as Promise<Me>)
         .then(setMe)
-        .catch(() => setMe({ username: null, isAdmin: false, needsConsent: false, email: null, phone: null })),
+        .catch(() => setMe(SIGNED_OUT)),
     [],
   );
 
@@ -85,7 +106,7 @@ export function useAuth() {
   );
 
   const consent = useCallback(
-    async (form: { consent: boolean; marketing: boolean; email?: string; phone?: string }) => {
+    async (form: ConsentForm) => {
       const res = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       await refresh();
@@ -95,11 +116,12 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    setMe({ username: null, isAdmin: false, needsConsent: false, email: null, phone: null });
+    setMe(SIGNED_OUT);
   }, []);
 
   return {
     me,
+    refresh,
     /** undefined while checking, null when signed out or still owing consent (nothing private loads until then). */
     username: me === undefined ? undefined : me.username && !me.needsConsent ? me.username : null,
     submit,
@@ -126,6 +148,8 @@ export function useCharacters(username: string | null | undefined) {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [ready, setReady] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  /** Old chats found in this browser, waiting for the person to import or discard them. */
+  const [legacy, setLegacy] = useState<Character[] | null>(null);
   // Last version of each character known to be on the server; anything else is unsaved.
   const saved = useRef(new Map<string, Character>());
   const latest = useRef<Character[]>([]);
@@ -150,15 +174,9 @@ export function useCharacters(username: string | null | undefined) {
           list.forEach((c) => saved.current.set(c.id, c));
           setCharacters(list);
         } else {
-          // Empty account: bring over this browser's old chats; otherwise the lobby shows the catalog.
-          const local = takeLocalCharacters();
-          setCharacters(local ? normalize(local) : []);
-          if (local) {
-            try {
-              localStorage.removeItem(CHARS_KEY);
-            } catch {}
-          }
+          setCharacters([]);
         }
+        setLegacy(readLocalCharacters());
         setReady(true);
       })
       .catch(() => !cancelled && setSaveFailed(true));
@@ -207,7 +225,22 @@ export function useCharacters(username: string | null | undefined) {
     fetch(`/api/characters/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => setSaveFailed(true));
   }, []);
 
-  return { characters, ready, saveFailed, update, add, remove };
+  const clearLegacy = useCallback(() => {
+    try {
+      localStorage.removeItem(CHARS_KEY);
+    } catch {}
+    setLegacy(null);
+  }, []);
+
+  /** Adds the browser's old chats to this account (fresh ids, so they can't clash), then forgets them locally. */
+  const importLegacy = useCallback(() => {
+    if (!legacy) return;
+    const stamp = Date.now();
+    setCharacters((list) => [...normalize(legacy).map((c, i) => ({ ...c, id: `local-${stamp}-${i}`, sourceId: undefined })), ...list]);
+    clearLegacy();
+  }, [legacy, clearLegacy]);
+
+  return { characters, ready, saveFailed, update, add, remove, legacy, importLegacy, clearLegacy };
 }
 
 /** AI backend status. The host is pinned on the server (OLLAMA_URL / Workers AI), so nothing here is user-configurable. */
@@ -235,7 +268,7 @@ export function useOllama() {
 export type CatalogCard = Omit<CatalogEntry, 'reviewNote' | 'sourceId'>;
 export type Submission = { id: string; sourceId: string | null; status: CatalogStatus; reviewNote: string; tier: number };
 
-/** Published characters and this account's own publish requests. */
+/** Published characters (public) and, when signed in, this account's own publish requests. */
 export function useCatalog(username: string | null | undefined) {
   const [catalog, setCatalog] = useState<CatalogCard[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -245,14 +278,16 @@ export function useCatalog(username: string | null | undefined) {
       .then((r) => (r.ok ? (r.json() as Promise<CatalogCard[]>) : []))
       .then(setCatalog)
       .catch(() => {});
+    if (!username) return setSubmissions([]);
     fetch('/api/catalog/mine')
       .then((r) => (r.ok ? (r.json() as Promise<Submission[]>) : []))
       .then(setSubmissions)
       .catch(() => {});
-  }, []);
+  }, [username]);
 
+  // The catalog is public, so it loads signed out too and again after signing in (plan, 18+ change).
   useEffect(() => {
-    if (username) refresh();
+    if (username !== undefined) refresh();
   }, [username, refresh]);
 
   const submit = useCallback(
@@ -292,7 +327,7 @@ export function useBilling(username: string | null | undefined) {
       .catch(() => {});
   }, []);
   useEffect(() => {
-    if (username) refresh();
+    if (username !== undefined) refresh();
   }, [username, refresh]);
   return { billing, refresh };
 }

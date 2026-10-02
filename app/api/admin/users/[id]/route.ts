@@ -1,4 +1,5 @@
-import { PASSWORD_MIN, USERNAME_RULE, envAdmin, hashPassword, requireAdmin } from '@/lib/server/auth';
+import { PASSWORD_MIN, USERNAME_RULE, hashPassword, requireAdmin } from '@/lib/server/auth';
+import { ageFromBirthdate } from '@/lib/age';
 import { EMAIL_RULE, normalizePhone } from '@/lib/legal';
 import { FREE_PLAN_ID } from '@/lib/plans';
 import { getPlan, getSubscription, isLive, setSubscription } from '@/lib/server/billing';
@@ -40,6 +41,8 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/users/[i
     signOut?: unknown;
     grant?: { planId?: unknown; days?: unknown };
     revoke?: unknown;
+    birthdate?: unknown;
+    guardianConsent?: unknown;
   };
 
   // Checked up front: these need lookups outside the transaction.
@@ -79,6 +82,13 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/users/[i
         if (raw && !tel) throw new Refuse('เบอร์โทรไม่ถูกต้อง', 400);
         await tx`UPDATE users SET phone = ${tel} WHERE id = ${user.id}`;
       }
+      if (body.birthdate !== undefined) {
+        // Corrections only come through here; people can't change their own birthdate once set.
+        const birth = typeof body.birthdate === 'string' && body.birthdate ? body.birthdate : null;
+        if (birth && ageFromBirthdate(birth) === null) throw new Refuse('วันเกิดไม่ถูกต้อง', 400);
+        await tx`UPDATE users SET birthdate = ${birth} WHERE id = ${user.id}`;
+      }
+      if (body.guardianConsent !== undefined) await tx`UPDATE users SET guardian_consent = ${body.guardianConsent === true} WHERE id = ${user.id}`;
       if (body.revoke) {
         if (sub?.source === 'stripe' && isLive(sub)) throw new Refuse('แพ็กเกจนี้ชำระผ่าน Stripe ยกเลิกได้ที่ Stripe Dashboard', 409);
         await tx`DELETE FROM subscriptions WHERE user_id = ${user.id}`;
@@ -117,7 +127,12 @@ export async function DELETE(_req: Request, ctx: RouteContext<'/api/admin/users/
   const user = await target((await ctx.params).id);
   if (!user) return new Response('ไม่พบบัญชีนี้', { status: 404 });
   if (user.id === me.id) return new Response('ลบบัญชีของตัวเองไม่ได้', { status: 400 });
-  if (envAdmin(user.username)) return new Response('บัญชีนี้อยู่ใน ADMIN_USERNAMES เอาออกจาก env ก่อนแล้วค่อยลบ', { status: 400 });
+  // Stripe would keep charging a card nobody can sign in to cancel.
+  const sub = await getSubscription(user.id);
+  if (sub && isLive(sub) && sub.source === 'stripe' && !sub.cancelAtPeriodEnd) {
+    return new Response('บัญชีนี้ยังมีแพ็กเกจที่ตัดบัตรอัตโนมัติ ยกเลิก subscription ใน Stripe Dashboard ก่อนแล้วค่อยลบ', { status: 409 });
+  }
+
   // Sessions, chats, membership and code redemptions go with it (ON DELETE CASCADE).
   const sql = await db();
   await sql`DELETE FROM users WHERE id = ${user.id}`;

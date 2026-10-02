@@ -20,11 +20,6 @@ export async function workersAi(): Promise<WorkersAi | null> {
   return { account, token, model: (await getSetting('cf_model')) || process.env.CLOUDFLARE_MODEL?.trim() || DEFAULT_CF_MODEL, fallback };
 }
 
-/** Ollama model names (e.g. llama3.1:8b) mean nothing here, so fall back to the configured model. */
-export function pickModel(cf: WorkersAi, requested: string): string {
-  return /^@(cf|hf)\//.test(requested) ? requested : cf.model;
-}
-
 async function errorDetail(res: Response): Promise<string> {
   const raw = await res.text().catch(() => '');
   try {

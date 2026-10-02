@@ -46,7 +46,14 @@ file on its own.
    docker compose --profile tunnel up -d
    ```
 
-5. Back up Postgres from now on:
+5. Give your account admin rights. `ADMIN_USERNAMES` no longer does anything (anyone could register
+   a listed name before you), so do this once per admin:
+
+   ```sh
+   docker compose exec app node scripts/make-admin.mjs <your-username>
+   ```
+
+6. Back up Postgres from now on:
 
    ```sh
    docker compose exec db pg_dump -U longrak longrak | gzip > longrak-$(date +%F).sql.gz

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BookOpen, ChatCircle, Crown, GearSix, LockSimple, MagnifyingGlass, Megaphone, Plus, SignOut, Trash } from '@phosphor-icons/react';
+import { BookOpen, Bug, ChatCircle, Crown, LockSimple, MagnifyingGlass, Megaphone, Plus, Trash, UserCircle } from '@phosphor-icons/react';
 import Link from 'next/link';
 import RoleplayText from './RoleplayText';
 import { STATUS_LABEL } from '@/lib/catalog';
@@ -13,7 +13,9 @@ type Props = {
   characters: Character[];
   ready: boolean;
   username: string;
-  isAdmin: boolean;
+  /** Not signed in: only the catalog shows, and anything that needs an account asks to sign in. */
+  guest: boolean;
+  onLogin: () => void;
   catalog: CatalogCard[];
   submissions: Submission[];
   plan: Plan | null;
@@ -22,9 +24,14 @@ type Props = {
   onStart: (catalogId: string) => void;
   onSubmitForPublish: (characterId: string) => void;
   onWithdraw: (characterId: string) => void;
+  onReport: () => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
-  onLogout: () => void;
+  onAccount: () => void;
+  /** Old chats found in this browser from before accounts. */
+  legacyCount: number;
+  onImportLegacy: () => void;
+  onDiscardLegacy: () => void;
 };
 
 type Shelf = 'all' | 'general' | 'adult';
@@ -73,7 +80,8 @@ export default function Lobby({
   characters,
   ready,
   username,
-  isAdmin,
+  guest,
+  onLogin,
   catalog,
   submissions,
   plan,
@@ -81,9 +89,13 @@ export default function Lobby({
   onStart,
   onSubmitForPublish,
   onWithdraw,
+  onReport,
   onDelete,
   onCreate,
-  onLogout,
+  onAccount,
+  legacyCount,
+  onImportLegacy,
+  onDiscardLegacy,
 }: Props) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [publishId, setPublishId] = useState<string | null>(null);
@@ -142,28 +154,53 @@ export default function Lobby({
           </label>
         )}
         <div className="topbar-actions">
+          {guest ? (
+            <>
+              <Link className="btn btn-ghost" href="/membership">
+                แพ็กเกจ
+              </Link>
+              <button className="btn btn-primary" onClick={onLogin}>
+                เข้าสู่ระบบ / สมัคร
+              </button>
+            </>
+          ) : (
+          <>
           <Link className="plan-chip" href="/membership" data-level={level} title="แพ็กเกจสมาชิก">
             {level > 0 && <Crown size={14} weight="fill" aria-hidden />}
             {plan?.name ?? 'Free'}
           </Link>
-          {isAdmin && (
-            <Link className="btn btn-ghost admin-link" href="/admin" aria-label="หน้าแอดมิน" title="หน้าแอดมิน">
-              <GearSix size={18} />
-              <span>แอดมิน</span>
-            </Link>
-          )}
+          <button className="icon-btn" onClick={onReport} aria-label="แจ้งปัญหา" title="แจ้งปัญหา">
+            <Bug size={19} />
+          </button>
           <button className="btn btn-primary" onClick={onCreate}>
             <Plus size={18} weight="bold" />
             <span>สร้างตัวละคร</span>
           </button>
-          <button className="btn btn-ghost account" onClick={onLogout} aria-label={`ออกจากระบบ (${username})`} title="ออกจากระบบ">
+          <button className="btn btn-ghost account" onClick={onAccount} aria-label={`บัญชีของฉัน (${username})`} title="บัญชีของฉัน">
             <span className="account-name">{username}</span>
-            <SignOut size={18} />
+            <UserCircle size={18} />
           </button>
+          </>
+          )}
         </div>
       </header>
 
       <main className="lobby-main">
+        {legacyCount > 0 && (
+          <div className="legacy-banner" role="status">
+            <p>
+              เบราว์เซอร์นี้มีแชทเก่า {legacyCount} เรื่องจากก่อนมีระบบบัญชี ถ้าเป็นของคุณ นำเข้าบัญชีนี้ได้ ถ้าเป็นเครื่องที่ใช้ร่วมกันและไม่ใช่ของคุณ กดลบออกจากเครื่อง
+            </p>
+            <span className="confirm">
+              <button className="btn btn-soft" onClick={onImportLegacy}>
+                นำเข้าบัญชีนี้
+              </button>
+              <button className="link danger" onClick={onDiscardLegacy}>
+                ลบออกจากเครื่อง
+              </button>
+            </span>
+          </div>
+        )}
         {recent && (
           <section className="spread" aria-label="อ่านต่อจากครั้งล่าสุด">
             <button className="spread-cover book" onClick={() => onOpen(recent.id)} aria-label={`อ่านต่อกับ ${recent.name}`}>
@@ -242,7 +279,17 @@ export default function Lobby({
           </section>
         )}
 
-        {empty ? (
+        {guest ? (
+          catalog.length === 0 && (
+            <div className="empty">
+              <p className="empty-title">ยินดีต้อนรับสู่หลงรักแชท</p>
+              <p>เข้าสู่ระบบเพื่อสร้างตัวละครและเริ่มเขียนเรื่องรักของคุณเอง</p>
+              <button className="btn btn-primary btn-lg" onClick={onLogin}>
+                เข้าสู่ระบบ / สมัคร
+              </button>
+            </div>
+          )
+        ) : empty ? (
           <div className="empty">
             <p className="empty-title">ชั้นหนังสือยังว่างอยู่</p>
             <p>

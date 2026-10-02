@@ -40,24 +40,31 @@ export async function POST(req: Request) {
   if (seen) return new Response(null, { status: 200 });
 
   const obj = event.data.object;
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const meta = (obj.metadata ?? {}) as Record<string, string>;
-      if (typeof obj.subscription === 'string') await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${obj.subscription}`));
-      // A code counts as used once the payment went through, not when someone only opened checkout.
-      if (meta.code && meta.userId) await recordRedemption(meta.code, Number(meta.userId));
-      break;
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const meta = (obj.metadata ?? {}) as Record<string, string>;
+        if (typeof obj.subscription === 'string') await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${obj.subscription}`));
+        // A code counts as used once the payment went through, not when someone only opened checkout.
+        if (meta.code && meta.userId) await recordRedemption(meta.code, Number(meta.userId));
+        break;
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+        // Events can arrive out of order; read the subscription as it is now rather than as the event saw it.
+        await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${(obj as { id: string }).id}`));
+        break;
+      case 'invoice.paid': {
+        const subId = (obj.subscription ?? (obj.parent as { subscription_details?: { subscription?: string } })?.subscription_details?.subscription) as string | undefined;
+        if (subId) await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${subId}`));
+        break;
+      }
     }
-    case 'customer.subscription.created':
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted':
-      await applySubscription(obj as unknown as StripeSubscription);
-      break;
-    case 'invoice.paid': {
-      const subId = (obj.subscription ?? (obj.parent as { subscription_details?: { subscription?: string } })?.subscription_details?.subscription) as string | undefined;
-      if (subId) await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${subId}`));
-      break;
-    }
+  } catch (e) {
+    // Answer 500 so Stripe retries (it backs off for up to 3 days); a lasting failure shows in its dashboard.
+    console.error(`[stripe] ${event.type} ${event.id}:`, e);
+    return new Response('failed to apply event', { status: 500 });
   }
 
   await sql`INSERT INTO stripe_events (id, at) VALUES (${event.id}, ${Date.now()}) ON CONFLICT DO NOTHING`;

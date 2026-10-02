@@ -1,18 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Sans_Thai, Trirong } from 'next/font/google';
+import { Mitr } from 'next/font/google';
 import './globals.css';
 
-const sans = IBM_Plex_Sans_Thai({
+/** One family for the whole site: Mitr for both headings (--font-serif) and UI text (--font-sans). */
+const mitr = Mitr({
   subsets: ['thai', 'latin'],
-  weight: ['300', '400', '500', '600'],
-  variable: '--font-sans',
-});
-
-const serif = Trirong({
-  subsets: ['thai', 'latin'],
-  weight: ['400', '500', '600', '700'],
-  style: ['normal', 'italic'],
-  variable: '--font-serif',
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-mitr',
 });
 
 export const metadata: Metadata = {
@@ -29,7 +23,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${sans.variable} ${serif.variable}`}>
+    <html lang="th" className={mitr.variable}>
       <body>{children}</body>
     </html>
   );

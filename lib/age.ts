@@ -21,3 +21,24 @@ export function adultBlocker(c: Pick<Character, 'age' | 'userAge'>): string | nu
   }
   return null;
 }
+
+/** Today in Thailand as YYYY-MM-DD; birthdays turn over at Bangkok midnight. */
+export function todayTh(now = new Date()) {
+  return now.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+}
+
+/** Whole years since a YYYY-MM-DD birthdate, or null when it isn't a real past date. */
+export function ageFromBirthdate(birthdate: string | null | undefined, now = new Date()): number | null {
+  const m = birthdate?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const check = new Date(Date.UTC(y, mo - 1, d));
+  if (check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) return null;
+  const [ty, tm, td] = todayTh(now).split('-').map(Number);
+  const age = ty - y - (tm < mo || (tm === mo && td < d) ? 1 : 0);
+  return age >= 0 && age <= 120 ? age : null;
+}
+
+export const ADULT_AGE = 18;
+/** Under the PDPA a person under 20 needs a guardian's consent. */
+export const GUARDIAN_UNDER = 20;

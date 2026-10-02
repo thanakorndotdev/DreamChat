@@ -1,4 +1,5 @@
-import { PASSWORD_MIN, USERNAME_RULE, envAdmin, hashPassword, requireAdmin } from '@/lib/server/auth';
+import { PASSWORD_MIN, USERNAME_RULE, hashPassword, requireAdmin } from '@/lib/server/auth';
+import { ageFromBirthdate } from '@/lib/age';
 import { CONSENT_VERSION, EMAIL_RULE, normalizePhone } from '@/lib/legal';
 import { type Subscription, isLive, listPlans } from '@/lib/server/billing';
 import { db } from '@/lib/server/db';
@@ -19,12 +20,13 @@ export type AdminUser = {
   id: number;
   username: string;
   isAdmin: boolean;
-  /** Admin through ADMIN_USERNAMES, which the admin page can't turn off. */
-  envAdmin: boolean;
   createdAt: number;
   email: string | null;
   phone: string | null;
   consented: boolean;
+  birthdate: string | null;
+  age: number | null;
+  guardianConsent: boolean;
   marketing: boolean;
   /** How many chats they keep; the chats themselves are private and never sent here. */
   characters: number;
@@ -47,6 +49,8 @@ export async function GET() {
       phone: string | null;
       consent_version: number;
       marketing_consent: boolean;
+      birthdate: string | null;
+      guardian_consent: boolean;
       characters: number;
       sessions: number;
       plan_id: string | null;
@@ -56,7 +60,7 @@ export async function GET() {
       cancel_at_period_end: boolean | null;
     }[]
   >`
-    SELECT u.id, u.username, u.is_admin, u.created_at, u.email, u.phone, u.consent_version, u.marketing_consent,
+    SELECT u.id, u.username, u.is_admin, u.created_at, u.email, u.phone, u.consent_version, u.marketing_consent, u.birthdate, u.guardian_consent,
       (SELECT count(*) FROM characters c WHERE c.user_id = u.id) AS characters,
       (SELECT count(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ${Date.now()}) AS sessions,
       sub.plan_id, sub.source, sub.status, sub.current_period_end, sub.cancel_at_period_end
@@ -69,13 +73,15 @@ export async function GET() {
       (u): AdminUser => ({
         id: u.id,
         username: u.username,
-        isAdmin: u.is_admin || envAdmin(u.username),
-        envAdmin: envAdmin(u.username),
+        isAdmin: u.is_admin,
         createdAt: u.created_at,
         email: u.email,
         phone: u.phone,
         consented: u.consent_version >= CONSENT_VERSION,
         marketing: u.marketing_consent,
+        birthdate: u.birthdate,
+        age: ageFromBirthdate(u.birthdate),
+        guardianConsent: u.guardian_consent,
         characters: u.characters,
         sessions: u.sessions,
         plan: planOf(

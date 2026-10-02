@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowClockwise, ArrowLeft, Camera, IdentificationCard, Notebook, PaperPlaneRight, Stop, Trash, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowLeft, Bug, Camera, IdentificationCard, Notebook, PaperPlaneRight, Stop, Trash, X } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
 import { adultBlocker } from '@/lib/age';
 import { fileToAvatar } from '@/lib/image';
 import { NOTE_EVERY, pendingMessages, writeNote } from '@/lib/memory';
 import Link from 'next/link';
 import type { BillingState } from '@/app/api/billing/route';
-import { LimitError, buildPrompt, streamChat } from '@/lib/ollama';
+import { HISTORY_WINDOW, LimitError, streamAi } from '@/lib/ollama';
 import type { Character, Message } from '@/lib/types';
 
 type Props = {
@@ -18,11 +18,14 @@ type Props = {
   billing: BillingState | null;
   /** Called after each reply so the daily counter stays current. */
   onReplied: () => void;
+  onReport: () => void;
+  /** The account is 18+ by its birthdate; otherwise rude mode stays off (the server enforces it too). */
+  userAdult: boolean;
   onUpdate: (fn: (c: Character) => Character) => void;
   onBack: () => void;
 };
 
-export default function ChatRoom({ character: char, host, model, billing, onReplied, onUpdate, onBack }: Props) {
+export default function ChatRoom({ character: char, host, model, billing, onReplied, onReport, userAdult, onUpdate, onBack }: Props) {
   const features = billing?.plan.features;
   const memoryOn = (features?.memoryNotes ?? 30) > 0;
   const left = features?.dailyMessages ? Math.max(0, features.dailyMessages - (billing?.usage.chat ?? 0)) : null;
@@ -85,8 +88,19 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
     abort.current = controller;
     setStreaming('');
     try {
-      const reply = await streamChat(
-        { host, model, messages: buildPrompt(char, history, features?.memoryNotes), signal: controller.signal },
+      const { text: reply } = await streamAi(
+        {
+          task: 'reply',
+          characterId: char.id,
+          history: history
+            .filter((m) => !m.failed)
+            .slice(-(features?.historyWindow ?? HISTORY_WINDOW))
+            .map((m) => ({ sender: m.sender, text: m.text.slice(0, 4000) })),
+          rude: !!char.adult && !blocker,
+          host,
+          model,
+          signal: controller.signal,
+        },
         setStreaming,
       );
       onUpdate((c) => ({
@@ -151,7 +165,7 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
   };
 
   const lastFailed = char.messages[char.messages.length - 1]?.failed;
-  const blocker = adultBlocker(char);
+  const blocker = userAdult ? adultBlocker(char) : 'โหมด 18+ ใช้ได้เฉพาะบัญชีที่อายุ 18 ปีขึ้นไปตามวันเกิด';
 
   return (
     <div className="chat" data-profile={profileOpen ? 'open' : undefined}>
@@ -310,6 +324,9 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
             <IdentificationCard className="only-mobile" size={18} />
           </button>
           <div className="scene-tools">
+            <button className="icon-btn" onClick={onReport} aria-label="แจ้งปัญหา" title="แจ้งปัญหา">
+              <Bug size={19} />
+            </button>
             <button
               className="icon-btn notes-btn"
               onClick={() => {

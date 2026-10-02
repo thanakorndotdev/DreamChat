@@ -12,13 +12,13 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-longrak}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-longrak}
       # Server-side pin: the API routes ignore the Host URL typed in the browser.
       - OLLAMA_URL=http://ollama:11434
+      # Model for Ollama when Workers AI isn't set (the browser can't pick one on a deployed server).
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
       # Set these to chat through Cloudflare Workers AI instead of Ollama.
       - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - CLOUDFLARE_MODEL=${CLOUDFLARE_MODEL:-}
       - CLOUDFLARE_FALLBACK_MODEL=${CLOUDFLARE_FALLBACK_MODEL:-}
-      # Comma-separated usernames that are always admins (/admin).
-      - ADMIN_USERNAMES=${ADMIN_USERNAMES:-}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - APP_URL=${APP_URL:-}
