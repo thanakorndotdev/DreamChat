@@ -1,8 +1,9 @@
-node_modules
-.next
+**/node_modules
+**/.next
+**/next-env.d.ts
 .git
 .env
-index.html
-*.md
-data
 .env*.local
+**/*.md
+legacy
+data

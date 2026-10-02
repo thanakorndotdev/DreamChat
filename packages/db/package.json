@@ -1,0 +1,17 @@
+{
+  "name": "@longrak/db",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@longrak/shared": "*",
+    "postgres": "^3.4.9"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "make-admin": "node scripts/make-admin.mjs",
+    "migrate-sqlite": "node scripts/sqlite-to-postgres.mjs"
+  }
+}

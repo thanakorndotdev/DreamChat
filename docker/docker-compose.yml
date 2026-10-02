@@ -1,0 +1,103 @@
+# Run from the repository root, so the root .env is used:
+#   docker compose --project-directory . -f docker/docker-compose.yml up -d --build
+#   (add --profile tunnel to also start the Cloudflare tunnel)
+name: dreamchat
+
+x-app-build: &app-build
+  context: .
+  dockerfile: docker/app.Dockerfile
+
+services:
+  # Backend: every /api route. Not published; the web and admin apps reach it on the compose network.
+  api:
+    build:
+      <<: *app-build
+      args: { APP: api }
+    container_name: dreamchat-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-longrak}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-longrak}
+      # Shared with the admin app; admin endpoints only answer requests carrying it.
+      - ADMIN_PROXY_SECRET=${ADMIN_PROXY_SECRET:?set ADMIN_PROXY_SECRET in .env}
+      # Server-side pin: the API never uses an AI host sent by a browser.
+      - OLLAMA_URL=http://ollama:11434
+      # Model for Ollama when Workers AI isn't set.
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      # Set these to chat through Cloudflare Workers AI instead of Ollama.
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - CLOUDFLARE_MODEL=${CLOUDFLARE_MODEL:-}
+      - CLOUDFLARE_FALLBACK_MODEL=${CLOUDFLARE_FALLBACK_MODEL:-}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - APP_URL=${APP_URL:-}
+    volumes:
+      # The old SQLite file, kept for the one-off copy into Postgres (scripts/sqlite-to-postgres.mjs).
+      # Safe to remove once the copy is verified.
+      - dreamchat-data:/app/data
+
+  # The public site.
+  web:
+    build:
+      <<: *app-build
+      args: { APP: web }
+    container_name: dreamchat-web
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      - API_URL=http://api:3000
+      - LEGAL_OPERATOR_NAME=${LEGAL_OPERATOR_NAME:-}
+      - LEGAL_CONTACT_EMAIL=${LEGAL_CONTACT_EMAIL:-}
+    ports:
+      - "100.84.226.15:3200:3000"  # tailnet only, for testing without the tunnel
+
+  # The admin console, on its own hostname (put it behind Cloudflare Access).
+  admin:
+    build:
+      <<: *app-build
+      args: { APP: admin }
+    container_name: dreamchat-admin
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      - API_URL=http://api:3000
+      - ADMIN_PROXY_SECRET=${ADMIN_PROXY_SECRET:?set ADMIN_PROXY_SECRET in .env}
+    ports:
+      - "100.84.226.15:3201:3000"  # tailnet only
+
+  db:
+    image: postgres:16-alpine
+    container_name: dreamchat-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-longrak}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=${POSTGRES_DB:-longrak}
+    volumes:
+      - dreamchat-pg:/var/lib/postgresql/data   # accounts, chats, catalog, billing
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # No ports: only the api reaches it.
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: dreamchat-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on: [web, admin]
+    profiles: [tunnel]
+
+volumes:
+  dreamchat-data:
+  dreamchat-pg:

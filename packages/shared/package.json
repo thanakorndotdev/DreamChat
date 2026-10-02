@@ -1,0 +1,17 @@
+{
+  "name": "@longrak/shared",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./components/*": "./components/*.tsx",
+    "./styles/*": "./styles/*",
+    "./*": "./src/*.ts"
+  },
+  "peerDependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "react": "^19.3.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  }
+}
