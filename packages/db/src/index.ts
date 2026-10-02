@@ -1,5 +1,6 @@
 import postgres from 'postgres';
-import { DEFAULT_CHARACTERS } from '@longrak/shared/presets';
+import { BOT_PRESETS } from '@longrak/shared/presets';
+import { toSheet } from '@longrak/shared/catalog';
 import { DEFAULT_PLANS } from '@longrak/shared/plans';
 
 /**
@@ -8,12 +9,14 @@ import { DEFAULT_PLANS } from '@longrak/shared/plans';
  */
 
 export type Sql = postgres.Sql<{ bigint: number }>;
+/** A schema change: SQL, or a step that needs code (e.g. to insert bundled data). Runs once, in order. */
+type Migration = string | ((tx: postgres.TransactionSql<{ bigint: number }>) => Promise<void>);
 
 /**
  * Applied in order, once each; the index is the version. Never edit a shipped entry, append a new one.
  * Times are milliseconds since epoch (bigint, read back as numbers) to match the app's Date.now().
  */
-const MIGRATIONS: string[] = [
+const MIGRATIONS: Migration[] = [
   `
   CREATE EXTENSION IF NOT EXISTS citext;
 
@@ -167,6 +170,24 @@ const MIGRATIONS: string[] = [
   UPDATE plans SET price = 9900, interval = 'month' WHERE id = 'plus' AND price = 79900 AND interval = 'year';
   UPDATE plans SET price = 19900, interval = 'month' WHERE id = 'pro' AND price = 99900 AND interval = 'year';
   `,
+  // The ready-made characters join the catalog, each with a face. The seeded Iris becomes Hayun unless an
+  // admin has changed her; any id already taken is left alone. Spaced timestamps keep the list's order.
+  async (tx) => {
+    const now = Date.now();
+    for (const [i, { id, imagePrompt: _p, ...preset }] of BOT_PRESETS.entries()) {
+      const sheet = toSheet({ ...preset, adult: false });
+      const at = now - i * 1000;
+      if (id === 'char-1') {
+        await tx`
+          UPDATE catalog SET data = ${tx.json(sheet)}, updated_at = ${at}, published_at = ${at}
+          WHERE id = 'char-1' AND data->>'name' = 'ไอริส (Iris)'`;
+      }
+      await tx`
+        INSERT INTO catalog (id, data, status, created_at, updated_at, published_at)
+        VALUES (${id}, ${tx.json(sheet)}, 'published', ${at}, ${at}, ${at})
+        ON CONFLICT (id) DO NOTHING`;
+    }
+  },
 ];
 
 async function migrate(sql: Sql) {
@@ -177,7 +198,8 @@ async function migrate(sql: Sql) {
     const done = new Set((await tx<{ version: number }[]>`SELECT version FROM schema_migrations`).map((r) => r.version));
     for (const [version, script] of MIGRATIONS.entries()) {
       if (done.has(version)) continue;
-      await tx.unsafe(script);
+      if (typeof script === 'string') await tx.unsafe(script);
+      else await script(tx);
       await tx`INSERT INTO schema_migrations ${tx({ version, applied_at: Date.now() })}`;
     }
 
@@ -186,18 +208,6 @@ async function migrate(sql: Sql) {
         INSERT INTO plans (id, name, level, price, interval, features, perks)
         VALUES (${p.id}, ${p.name}, ${p.level}, ${p.price}, ${p.interval}, ${tx.json(p.features)}, ${tx.json(p.perks)})
         ON CONFLICT (id) DO NOTHING`;
-    }
-
-    // A fresh install starts with the bundled sample character in the catalog.
-    const [{ n }] = await tx<{ n: number }[]>`SELECT count(*) AS n FROM catalog`;
-    if (!n) {
-      const now = Date.now();
-      for (const c of DEFAULT_CHARACTERS) {
-        const { messages: _m, notes: _n, notedUpTo: _u, updatedAt: _t, userName: _p, ...sheet } = c;
-        await tx`
-          INSERT INTO catalog (id, data, status, created_at, updated_at, published_at)
-          VALUES (${c.id}, ${tx.json(sheet)}, 'published', ${now}, ${now}, ${now})`;
-      }
     }
   });
 }

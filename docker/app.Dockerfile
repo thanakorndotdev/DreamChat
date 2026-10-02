@@ -32,6 +32,8 @@ RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nod
 # The standalone build keeps the monorepo layout: server.js lives in apps/$APP.
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/${APP}/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/${APP}/.next/static ./apps/${APP}/.next/static
+# The web app's public files (the bundled character faces) go in every image, so the admin's catalog shows them too.
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/${APP}/public
 
 # Database scripts (make-admin, SQLite → Postgres copy) and the plain driver they need; run them in the api container.
 COPY --from=builder --chown=nextjs:nodejs /repo/packages/db/scripts ./scripts

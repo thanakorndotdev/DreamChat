@@ -120,6 +120,7 @@
 .sectionHeading .eyebrow { justify-content: center; }
 .sectionHeading h2, .howIntro h2, .faqSection h2 { font-size: clamp(28px, 3vw, 40px); font-weight: 400; letter-spacing: -.9px; line-height: 1.55; margin-top: 14px; }
 .sectionHeading > p:last-child { font-size: 14px; line-height: 1.95; color: var(--lp-muted); margin-top: 15px; }
+.characters { padding-top: 64px; padding-bottom: 72px; }
 .characterRow { list-style: none; padding: 0; margin: 47px 0 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; }
 .characterCard { width: 272px; display: flex; flex-direction: column; background: var(--lp-surface); border: 1px solid var(--lp-card-line); border-radius: 16px; overflow: hidden; box-shadow: 0 14px 40px var(--lp-shadow); transition: transform .2s, box-shadow .2s; }
 .characterCard:hover { transform: translateY(-4px); box-shadow: 0 20px 50px var(--lp-shadow); }
@@ -295,6 +296,7 @@
   .promiseStrip span { font-size: 11px; gap: 6px; }
   .promiseStrip svg { width: 16px; }
   .section { padding-block: 62px; }
+  .characters { padding-top: 40px; padding-bottom: 44px; }
   .sectionHeading h2 { font-size: 28px; }
   .sectionHeading > p:last-child { font-size: 12px; }
   .eyebrow { font-size: 11px; }

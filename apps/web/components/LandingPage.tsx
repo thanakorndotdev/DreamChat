@@ -71,6 +71,44 @@ export default function LandingPage({ plans, payments, username, characters }: P
       </header>
 
       <main id="main">
+        {characters.length > 0 && (
+          <section id="characters" className={`${styles.section} ${styles.characters} ${styles.container}`} aria-labelledby="characters-title">
+            <div className={styles.sectionHeading}><p className={styles.eyebrow}><Sparkle size={15} weight="fill" aria-hidden /> ตัวละครที่รอคุณอยู่</p><h2 id="characters-title">วันนี้ อยากทักใครก่อนดี?</h2><p>แต่ละคนมีนิสัย เรื่องราว และประโยคแรกที่รอส่งถึงคุณ<br />เลือกคนที่ใจเต้นแรงที่สุด แล้วตอบกลับไปได้เลย</p></div>
+            <ul className={styles.characterRow}>
+              {characters.map((e) => {
+                const name = shortName(e.sheet.name);
+                return (
+                  <li className={styles.characterCard} key={e.id}>
+                    <Link className={styles.characterPhoto} href={`/chat?start=${encodeURIComponent(e.id)}`} tabIndex={-1} aria-hidden>
+                      {e.sheet.avatar ? <img src={e.sheet.avatar} alt="" loading="lazy" /> : <span className={styles.characterNoPhoto}><Heart size={40} weight="fill" /></span>}
+                      {e.tier > 0 && <span className={styles.characterTier}><Crown size={12} weight="fill" /> {TIER_LABEL[e.tier]}</span>}
+                      <span className={styles.characterOnline}>พร้อมคุย</span>
+                    </Link>
+                    <div className={styles.characterBody}>
+                      <h3>{e.sheet.name}</h3>
+                      <p className={styles.characterRole}>{e.sheet.role}</p>
+                      <p className={styles.characterMeta}>{[e.sheet.gender, e.sheet.age, e.sheet.job].filter(Boolean).join(' · ')}</p>
+                      {e.sheet.firstMessage
+                        ? <p className={styles.characterGreeting}><Greeting text={e.sheet.firstMessage} /></p>
+                        : <p className={styles.characterGreeting}><em>ประโยคแรกของ{name} รอคุณอยู่ในแพ็กเกจ {TIER_LABEL[e.tier]}</em></p>}
+                      <Link className={styles.characterCta} href={`/chat?start=${encodeURIComponent(e.id)}`}>
+                        <ChatCircleDots size={18} aria-hidden /> คุยกับ{name}<ArrowRight size={16} aria-hidden />
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+              <li className={`${styles.characterCard} ${styles.characterCreate}`}>
+                <span className={styles.featureIcon}><MagicWand size={28} weight="duotone" aria-hidden /></span>
+                <h3>ยังไม่เจอคนที่ใช่?</h3>
+                <p>ออกแบบตัวละครของคุณเอง ทั้งหน้าตา นิสัย และฉากที่ได้พบกัน</p>
+                <Link className={styles.outlineButton} href="/chat?create=1">สร้างตัวละคร <ArrowRight size={17} aria-hidden /></Link>
+              </li>
+            </ul>
+            <p className={styles.characterMore}><Link className={styles.textButton} href="/chat">ดูตัวละครทั้งหมดในคลัง <ArrowRight size={17} aria-hidden /></Link></p>
+          </section>
+        )}
+
         <section className={`${styles.hero} ${styles.container}`} aria-labelledby="hero-title">
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}><span className={styles.smallLine} /> พื้นที่เล็ก ๆ สำหรับเรื่องราวของคุณ</p>
@@ -107,44 +145,6 @@ export default function LandingPage({ plans, payments, username, characters }: P
         </section>
 
         <div className={styles.promiseStrip}><div className={styles.container}><span><ChatCircleDots size={19} aria-hidden /> คุยกับตัวละคร AI</span><span><MagicWand size={19} aria-hidden /> สร้างโลกในแบบของคุณ</span><span><LockSimple size={19} aria-hidden /> แชทส่วนตัวในบัญชีคุณ</span></div></div>
-
-        {characters.length > 0 && (
-          <section id="characters" className={`${styles.section} ${styles.container}`} aria-labelledby="characters-title">
-            <div className={styles.sectionHeading}><p className={styles.eyebrow}><Sparkle size={15} weight="fill" aria-hidden /> ตัวละครที่รอคุณอยู่</p><h2 id="characters-title">วันนี้ อยากทักใครก่อนดี?</h2><p>แต่ละคนมีนิสัย เรื่องราว และประโยคแรกที่รอส่งถึงคุณ<br />เลือกคนที่ใจเต้นแรงที่สุด แล้วตอบกลับไปได้เลย</p></div>
-            <ul className={styles.characterRow}>
-              {characters.map((e) => {
-                const name = shortName(e.sheet.name);
-                return (
-                  <li className={styles.characterCard} key={e.id}>
-                    <Link className={styles.characterPhoto} href={`/chat?start=${encodeURIComponent(e.id)}`} tabIndex={-1} aria-hidden>
-                      {e.sheet.avatar ? <img src={e.sheet.avatar} alt="" loading="lazy" /> : <span className={styles.characterNoPhoto}><Heart size={40} weight="fill" /></span>}
-                      {e.tier > 0 && <span className={styles.characterTier}><Crown size={12} weight="fill" /> {TIER_LABEL[e.tier]}</span>}
-                      <span className={styles.characterOnline}>พร้อมคุย</span>
-                    </Link>
-                    <div className={styles.characterBody}>
-                      <h3>{e.sheet.name}</h3>
-                      <p className={styles.characterRole}>{e.sheet.role}</p>
-                      <p className={styles.characterMeta}>{[e.sheet.gender, e.sheet.age, e.sheet.job].filter(Boolean).join(' · ')}</p>
-                      {e.sheet.firstMessage
-                        ? <p className={styles.characterGreeting}><Greeting text={e.sheet.firstMessage} /></p>
-                        : <p className={styles.characterGreeting}><em>ประโยคแรกของ{name} รอคุณอยู่ในแพ็กเกจ {TIER_LABEL[e.tier]}</em></p>}
-                      <Link className={styles.characterCta} href={`/chat?start=${encodeURIComponent(e.id)}`}>
-                        <ChatCircleDots size={18} aria-hidden /> คุยกับ{name}<ArrowRight size={16} aria-hidden />
-                      </Link>
-                    </div>
-                  </li>
-                );
-              })}
-              <li className={`${styles.characterCard} ${styles.characterCreate}`}>
-                <span className={styles.featureIcon}><MagicWand size={28} weight="duotone" aria-hidden /></span>
-                <h3>ยังไม่เจอคนที่ใช่?</h3>
-                <p>ออกแบบตัวละครของคุณเอง ทั้งหน้าตา นิสัย และฉากที่ได้พบกัน</p>
-                <Link className={styles.outlineButton} href="/chat?create=1">สร้างตัวละคร <ArrowRight size={17} aria-hidden /></Link>
-              </li>
-            </ul>
-            <p className={styles.characterMore}><Link className={styles.textButton} href="/chat">ดูตัวละครทั้งหมดในคลัง <ArrowRight size={17} aria-hidden /></Link></p>
-          </section>
-        )}
 
         <section id="about" className={`${styles.section} ${styles.container}`} aria-labelledby="about-title">
           <div className={styles.sectionHeading}><p className={styles.eyebrow}>มากกว่าการอ่านเรื่องราว</p><h2 id="about-title">ครั้งนี้ คุณมีบทอยู่ในนั้นด้วย</h2><p>ไม่ต้องคิดพล็อตให้จบ แค่เริ่มจากประโยคที่อยากพูด<br />แล้วปล่อยให้เรื่องค่อย ๆ เติบโตไปกับคุณ</p></div>

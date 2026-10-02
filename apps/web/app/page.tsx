@@ -33,6 +33,6 @@ export default async function Home() {
     fromApi<CatalogEntry[]>('/api/catalog', cookie),
   ]);
   // The public page never features 18+ characters, even to a signed-in adult.
-  const characters = (catalog ?? []).filter((e) => !e.sheet.adult).sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0)).slice(0, 6);
+  const characters = (catalog ?? []).filter((e) => !e.sheet.adult).sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0)).slice(0, 7);
   return <LandingPage plans={billing?.plans ?? null} payments={billing?.payments ?? false} username={me?.username ?? null} characters={characters} />;
 }
