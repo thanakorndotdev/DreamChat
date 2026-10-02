@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Sans_Thai, Noto_Serif_Thai } from 'next/font/google';
+import { IBM_Plex_Sans_Thai, Trirong } from 'next/font/google';
 import './globals.css';
 
 const sans = IBM_Plex_Sans_Thai({
@@ -8,18 +8,24 @@ const sans = IBM_Plex_Sans_Thai({
   variable: '--font-sans',
 });
 
-const serif = Noto_Serif_Thai({
+const serif = Trirong({
   subsets: ['thai', 'latin'],
   weight: ['400', '500', '600', '700'],
+  style: ['normal', 'italic'],
   variable: '--font-serif',
 });
 
 export const metadata: Metadata = {
-  title: 'Dream Chat',
-  description: 'สวมบทบาทคุยกับตัวละครที่คุณสร้าง ประมวลผลด้วย Ollama ในเครื่องของคุณ',
+  title: 'หลงรักแชท',
+  description: 'เขียนเรื่องรักกับตัวละครที่คุณสร้าง แล้วอ่านต่อได้ทุกตอน ประมวลผลด้วย AI',
 };
 
-export const viewport: Viewport = { themeColor: '#17111C' };
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fbf5f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#1a1220' },
+  ],
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

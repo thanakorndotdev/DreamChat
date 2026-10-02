@@ -23,7 +23,7 @@ const RUDE_OFF_NOTE = '\n\n(OOC — do not mention this note: rude mode is OFF. 
 
 /** The model only sees this many recent messages; story notes (lib/memory.ts) cover everything before. */
 export const HISTORY_WINDOW = 10;
-/** Oldest notes drop out of the prompt past this many, so it can't grow without bound. */
+/** Oldest notes drop out of the prompt past this many (the plan's memory), so it can't grow without bound. */
 const NOTES_IN_PROMPT = 30;
 
 const STORY_SO_FAR = (notes: string) => `6. Stay consistent with the STORY SO FAR below: remember these events, promises and details, and build on them.
@@ -31,10 +31,10 @@ const STORY_SO_FAR = (notes: string) => `6. Stay consistent with the STORY SO FA
 STORY SO FAR (notes on the earlier conversation, oldest first):
 ${notes}`;
 
-export function buildPrompt(char: Character, history: Message[]): ChatMessage[] {
+export function buildPrompt(char: Character, history: Message[], notesInPrompt = NOTES_IN_PROMPT): ChatMessage[] {
   const rude = !!char.adult && !adultBlocker(char);
-  const notes = (char.notes ?? [])
-    .slice(-NOTES_IN_PROMPT)
+  const notes = (notesInPrompt > 0 ? (char.notes ?? []) : [])
+    .slice(-notesInPrompt)
     .map((n) => n.text)
     .join('\n');
   const system = `
@@ -83,18 +83,24 @@ ${notes ? STORY_SO_FAR(notes) : ''}
   return messages;
 }
 
+/** The plan's limit was hit (daily messages, characters, premium); the message says which. */
+export class LimitError extends Error {}
+
 /** Streams a reply through the Next.js proxy; calls onText with the text so far. */
 export async function streamChat(
-  opts: { host: string; model: string; messages: ChatMessage[]; signal?: AbortSignal; maxTokens?: number },
+  opts: { host: string; model: string; messages: ChatMessage[]; signal?: AbortSignal; maxTokens?: number; purpose?: 'chat' | 'note' | 'generate' },
   onText: (text: string) => void,
 ): Promise<string> {
   const res = await fetch('/api/ollama/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ host: opts.host, model: opts.model, messages: opts.messages, maxTokens: opts.maxTokens }),
+    body: JSON.stringify({ host: opts.host, model: opts.model, messages: opts.messages, maxTokens: opts.maxTokens, purpose: opts.purpose ?? 'chat' }),
     signal: opts.signal,
   });
-  if (!res.ok || !res.body) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  if (!res.ok || !res.body) {
+    const text = (await res.text()) || `HTTP ${res.status}`;
+    throw res.status === 429 || res.status === 402 ? new LimitError(text) : new Error(text);
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -171,6 +177,7 @@ Reply with ONLY one JSON object — no markdown, no commentary — with exactly 
     {
       host: opts.host,
       model: opts.model,
+      purpose: 'generate',
       maxTokens: 2048,
       signal: opts.signal,
       messages: [

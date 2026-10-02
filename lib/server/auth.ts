@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
+import { CONSENT_VERSION } from '../legal';
 import { getDb } from './db';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
@@ -8,7 +9,14 @@ const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: n
 const COOKIE = 'dc_session';
 const SESSION_DAYS = 30;
 
-export type User = { id: number; username: string };
+export type User = {
+  id: number;
+  username: string;
+  isAdmin: boolean;
+  email: string | null;
+  phone: string | null;
+  consentVersion: number;
+};
 
 export const USERNAME_RULE = /^[\p{L}\p{M}\p{N}_.-]{3,32}$/u;
 export const PASSWORD_MIN = 6;
@@ -61,15 +69,55 @@ export async function currentUser(): Promise<User | null> {
   if (!token) return null;
   const row = getDb()
     .prepare(
-      `SELECT users.id AS id, users.username AS username FROM sessions
+      `SELECT users.id AS id, users.username AS username, users.is_admin AS is_admin,
+         users.email AS email, users.phone AS phone, users.consent_version AS consent_version FROM sessions
        JOIN users ON users.id = sessions.user_id
        WHERE sessions.token_hash = ? AND sessions.expires_at > ?`,
     )
-    .get(sha256(token), Date.now()) as User | undefined;
-  return row ? { id: row.id, username: row.username } : null;
+    .get(sha256(token), Date.now()) as
+    | { id: number; username: string; is_admin: number; email: string | null; phone: string | null; consent_version: number }
+    | undefined;
+  return row
+    ? {
+        id: row.id,
+        username: row.username,
+        isAdmin: !!row.is_admin || envAdmin(row.username),
+        email: row.email,
+        phone: row.phone,
+        consentVersion: row.consent_version,
+      }
+    : null;
 }
 
 export const UNAUTHORIZED = () => new Response('กรุณาเข้าสู่ระบบก่อน', { status: 401 });
+
+/** Accounts from before PDPA consent (or missing email/phone) must finish that step before using the app. */
+export function needsConsent(user: User) {
+  return user.consentVersion < CONSENT_VERSION || !user.email || !user.phone;
+}
+
+/** The signed-in account that has accepted the current terms, or the response to send back. */
+export async function requireMember(): Promise<User | Response> {
+  const user = await currentUser();
+  if (!user) return UNAUTHORIZED();
+  if (needsConsent(user)) return new Response('กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนใช้งาน', { status: 403 });
+  return user;
+}
+
+/** Usernames in ADMIN_USERNAMES (comma separated) are always admins, so there is a way in before anyone is promoted. */
+export function envAdmin(username: string) {
+  return (process.env.ADMIN_USERNAMES ?? '')
+    .split(',')
+    .some((n) => n.trim() && n.trim().toLowerCase() === username.toLowerCase());
+}
+
+/** The signed-in admin, or the response to send back when the caller isn't one. */
+export async function requireAdmin(): Promise<User | Response> {
+  const user = await currentUser();
+  if (!user) return UNAUTHORIZED();
+  if (!user.isAdmin) return new Response('หน้านี้สำหรับผู้ดูแลระบบเท่านั้น', { status: 403 });
+  return user;
+}
 
 /** In-memory brake on password guessing: 10 failures per username per 15 minutes. */
 const failures = new Map<string, { count: number; until: number }>();

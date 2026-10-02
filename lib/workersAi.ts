@@ -4,16 +4,19 @@
  * Ollama's NDJSON shape, so the client code stays the same.
  */
 
+import { getSetting } from './server/settings';
+
 // Small, non-reasoning, ~7x fewer neurons per reply than SEA-LION 27B.
-const DEFAULT_CF_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
+export const DEFAULT_CF_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 
 export type WorkersAi = { account: string; token: string; model: string };
 
 export function workersAi(): WorkersAi | null {
-  const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const token = process.env.CLOUDFLARE_API_TOKEN?.trim();
+  // Values saved on the admin page win over env.
+  const account = getSetting('cf_account_id') || process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const token = getSetting('cf_api_token') || process.env.CLOUDFLARE_API_TOKEN?.trim();
   if (!account || !token) return null;
-  return { account, token, model: process.env.CLOUDFLARE_MODEL?.trim() || DEFAULT_CF_MODEL };
+  return { account, token, model: getSetting('cf_model') || process.env.CLOUDFLARE_MODEL?.trim() || DEFAULT_CF_MODEL };
 }
 
 /** Ollama model names (e.g. llama3.1:8b) mean nothing here, so fall back to the configured model. */
@@ -45,7 +48,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 /** Model to fall back to when the chosen one keeps failing (partner-hosted models like Gemma 4 run out of capacity). */
 function fallbackModel(model: string): string | null {
-  const fallback = process.env.CLOUDFLARE_FALLBACK_MODEL?.trim() || DEFAULT_CF_MODEL;
+  const fallback = getSetting('cf_fallback_model') || process.env.CLOUDFLARE_FALLBACK_MODEL?.trim() || DEFAULT_CF_MODEL;
   return fallback === 'none' || fallback === model ? null : fallback;
 }
 

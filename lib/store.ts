@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_CHARACTERS, DEFAULT_HOST, DEFAULT_MODEL } from './presets';
+import { DEFAULT_HOST, DEFAULT_MODEL } from './presets';
+import type { BillingState } from '@/app/api/billing/route';
+import type { CatalogEntry, CatalogStatus } from './catalog';
 import type { Character, OllamaStatus } from './types';
 
 const CHARS_KEY = 'dream_characters';
@@ -41,33 +43,69 @@ function takeLocalCharacters(): Character[] | null {
   }
 }
 
+export type Me = {
+  username: string | null;
+  isAdmin: boolean;
+  /** Has to accept the current PDPA terms (and fill in email/phone) before using the app. */
+  needsConsent: boolean;
+  email: string | null;
+  phone: string | null;
+};
+
+export type RegisterForm = { username: string; password: string; email: string; phone: string; consent: boolean; marketing: boolean };
+
 export function useAuth() {
-  /** undefined while checking the session, null when signed out. */
-  const [username, setUsername] = useState<string | null | undefined>(undefined);
+  /** undefined while checking the session. */
+  const [me, setMe] = useState<Me | undefined>(undefined);
+
+  const refresh = useCallback(
+    () =>
+      fetch('/api/auth/me')
+        .then((r) => r.json() as Promise<Me>)
+        .then(setMe)
+        .catch(() => setMe({ username: null, isAdmin: false, needsConsent: false, email: null, phone: null })),
+    [],
+  );
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d: { username: string | null }) => setUsername(d.username))
-      .catch(() => setUsername(null));
-  }, []);
+    refresh();
+  }, [refresh]);
 
-  const submit = useCallback(async (mode: 'login' | 'register', name: string, password: string) => {
-    const res = await fetch(`/api/auth/${mode}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: name, password }),
-    });
-    if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
-    setUsername(((await res.json()) as { username: string }).username);
-  }, []);
+  const submit = useCallback(
+    async (mode: 'login' | 'register', form: RegisterForm) => {
+      const res = await fetch(`/api/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mode === 'login' ? { username: form.username, password: form.password } : form),
+      });
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const consent = useCallback(
+    async (form: { consent: boolean; marketing: boolean; email?: string; phone?: string }) => {
+      const res = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+      await refresh();
+    },
+    [refresh],
+  );
 
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    setUsername(null);
+    setMe({ username: null, isAdmin: false, needsConsent: false, email: null, phone: null });
   }, []);
 
-  return { username, submit, logout };
+  return {
+    me,
+    /** undefined while checking, null when signed out or still owing consent (nothing private loads until then). */
+    username: me === undefined ? undefined : me.username && !me.needsConsent ? me.username : null,
+    submit,
+    consent,
+    logout,
+  };
 }
 
 const SAVE_DELAY = 600;
@@ -112,9 +150,9 @@ export function useCharacters(username: string | null | undefined) {
           list.forEach((c) => saved.current.set(c.id, c));
           setCharacters(list);
         } else {
-          // Empty account: bring over this browser's old chats, or start with the sample character.
+          // Empty account: bring over this browser's old chats; otherwise the lobby shows the catalog.
           const local = takeLocalCharacters();
-          setCharacters(normalize(local ?? DEFAULT_CHARACTERS));
+          setCharacters(local ? normalize(local) : []);
           if (local) {
             try {
               localStorage.removeItem(CHARS_KEY);
@@ -192,4 +230,69 @@ export function useOllama() {
   }, []);
 
   return { host: DEFAULT_HOST, model, status };
+}
+
+export type CatalogCard = Omit<CatalogEntry, 'reviewNote' | 'sourceId'>;
+export type Submission = { id: string; sourceId: string | null; status: CatalogStatus; reviewNote: string; tier: number };
+
+/** Published characters and this account's own publish requests. */
+export function useCatalog(username: string | null | undefined) {
+  const [catalog, setCatalog] = useState<CatalogCard[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+
+  const refresh = useCallback(() => {
+    fetch('/api/catalog')
+      .then((r) => (r.ok ? (r.json() as Promise<CatalogCard[]>) : []))
+      .then(setCatalog)
+      .catch(() => {});
+    fetch('/api/catalog/mine')
+      .then((r) => (r.ok ? (r.json() as Promise<Submission[]>) : []))
+      .then(setSubmissions)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (username) refresh();
+  }, [username, refresh]);
+
+  const submit = useCallback(
+    async (characterId: string) => {
+      const res = await fetch('/api/catalog/mine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ characterId }) });
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+      refresh();
+    },
+    [refresh],
+  );
+
+  const withdraw = useCallback(
+    async (characterId: string) => {
+      await fetch(`/api/catalog/mine?source=${encodeURIComponent(characterId)}`, { method: 'DELETE' });
+      refresh();
+    },
+    [refresh],
+  );
+
+  /** Creates the private copy on the server and returns it. */
+  const start = useCallback(async (id: string): Promise<Character> => {
+    const res = await fetch(`/api/catalog/${encodeURIComponent(id)}/start`, { method: 'POST' });
+    if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+    return res.json() as Promise<Character>;
+  }, []);
+
+  return { catalog, submissions, submit, withdraw, start };
+}
+
+/** The account's plan and today's usage; refresh after each reply to keep the counter current. */
+export function useBilling(username: string | null | undefined) {
+  const [billing, setBilling] = useState<BillingState | null>(null);
+  const refresh = useCallback(() => {
+    fetch('/api/billing')
+      .then((r) => (r.ok ? (r.json() as Promise<BillingState>) : null))
+      .then(setBilling)
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (username) refresh();
+  }, [username, refresh]);
+  return { billing, refresh };
 }

@@ -35,6 +35,7 @@ Write as a neutral narrator (use the names, not "I/you"). Reply with the bullets
     {
       host: opts.host,
       model: opts.model,
+      purpose: 'note',
       maxTokens: 400,
       signal: opts.signal,
       messages: [

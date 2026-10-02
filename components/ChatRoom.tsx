@@ -3,23 +3,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowClockwise, ArrowLeft, Camera, IdentificationCard, Notebook, PaperPlaneRight, Stop, Trash, X } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
-import StatusDot from './StatusDot';
 import { adultBlocker } from '@/lib/age';
 import { fileToAvatar } from '@/lib/image';
 import { NOTE_EVERY, pendingMessages, writeNote } from '@/lib/memory';
-import { buildPrompt, streamChat } from '@/lib/ollama';
-import type { Character, Message, OllamaStatus } from '@/lib/types';
+import Link from 'next/link';
+import type { BillingState } from '@/app/api/billing/route';
+import { LimitError, buildPrompt, streamChat } from '@/lib/ollama';
+import type { Character, Message } from '@/lib/types';
 
 type Props = {
   character: Character;
   host: string;
   model: string;
-  status: OllamaStatus;
+  billing: BillingState | null;
+  /** Called after each reply so the daily counter stays current. */
+  onReplied: () => void;
   onUpdate: (fn: (c: Character) => Character) => void;
   onBack: () => void;
 };
 
-export default function ChatRoom({ character: char, host, model, status, onUpdate, onBack }: Props) {
+export default function ChatRoom({ character: char, host, model, billing, onReplied, onUpdate, onBack }: Props) {
+  const features = billing?.plan.features;
+  const memoryOn = (features?.memoryNotes ?? 30) > 0;
+  const left = features?.dailyMessages ? Math.max(0, features.dailyMessages - (billing?.usage.chat ?? 0)) : null;
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -71,8 +77,8 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
   useEffect(() => {
     // Re-checks after each note too, so a long old chat catches up a chunk at a time.
     // A failed note waits for the next message (send clears the error) instead of retrying in a loop.
-    if (!busy && !noting && !noteError && pending >= NOTE_EVERY) jot(char);
-  }, [pending, busy, noting, noteError]);
+    if (memoryOn && !busy && !noting && !noteError && pending >= NOTE_EVERY) jot(char);
+  }, [pending, busy, noting, noteError, memoryOn]);
 
   const generate = async (history: Message[]) => {
     const controller = new AbortController();
@@ -80,7 +86,7 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
     setStreaming('');
     try {
       const reply = await streamChat(
-        { host, model, messages: buildPrompt(char, history), signal: controller.signal },
+        { host, model, messages: buildPrompt(char, history, features?.memoryNotes), signal: controller.signal },
         setStreaming,
       );
       onUpdate((c) => ({
@@ -96,12 +102,13 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
           ...c.messages,
           partial
             ? { sender: 'char', text: 'หยุดการตอบแล้ว', failed: true }
-            : { sender: 'char', text: err instanceof Error ? err.message : 'สร้างคำตอบไม่สำเร็จ', failed: true },
+            : { sender: 'char', text: err instanceof Error ? err.message : 'สร้างคำตอบไม่สำเร็จ', failed: true, limited: err instanceof LimitError || undefined },
         ],
       }));
     } finally {
       abort.current = null;
       setStreaming(null);
+      onReplied();
     }
   };
 
@@ -303,7 +310,6 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
             <IdentificationCard className="only-mobile" size={18} />
           </button>
           <div className="scene-tools">
-            <StatusDot status={status} />
             <button
               className="icon-btn notes-btn"
               onClick={() => {
@@ -351,10 +357,22 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
 
         <div ref={scroller} className="transcript" aria-live="polite">
           <div className="transcript-inner">
+            <header className="chapter">
+              <p className="chapter-num">ตอนที่ {(char.notes?.length ?? 0) + 1}</p>
+              <h1 className="chapter-title">{char.name}</h1>
+              <p className="chapter-sub">
+                {char.role} กับ {char.userName || 'คุณ'}
+              </p>
+            </header>
             {char.messages.map((m, i) =>
               m.failed ? (
                 <div key={i} className="note-error" role="alert">
                   <span>{m.text}</span>
+                  {m.limited && (
+                    <Link className="link" href="/membership">
+                      ดูแพ็กเกจ
+                    </Link>
+                  )}
                   {i === char.messages.length - 1 && (
                     <button className="link" onClick={retry} disabled={busy}>
                       <ArrowClockwise size={14} /> ลองอีกครั้ง
@@ -402,7 +420,15 @@ export default function ChatRoom({ character: char, host, model, status, onUpdat
               <button type="button" className="chip" onClick={insertAction}>
                 *ท่าทาง*
               </button>
-              <span className="hint">Enter ส่ง · Shift+Enter ขึ้นบรรทัด</span>
+              <span className="hint">
+                {left !== null ? (
+                  <Link className="quota" href="/membership" data-low={left <= 5 || undefined}>
+                    เหลือ {left} ข้อความวันนี้
+                  </Link>
+                ) : (
+                  'Enter ส่ง · Shift+Enter ขึ้นบรรทัด'
+                )}
+              </span>
             </div>
           </div>
           {busy ? (

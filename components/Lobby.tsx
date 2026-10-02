@@ -1,42 +1,157 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, SignOut, Trash } from '@phosphor-icons/react';
+import { useMemo, useState } from 'react';
+import { BookOpen, ChatCircle, Crown, GearSix, LockSimple, MagnifyingGlass, Megaphone, Plus, SignOut, Trash } from '@phosphor-icons/react';
+import Link from 'next/link';
 import RoleplayText from './RoleplayText';
-import StatusDot from './StatusDot';
-import type { Character, OllamaStatus } from '@/lib/types';
+import { STATUS_LABEL } from '@/lib/catalog';
+import { type Plan, TIER_LABEL } from '@/lib/plans';
+import type { CatalogCard, Submission } from '@/lib/store';
+import type { Character } from '@/lib/types';
 
 type Props = {
   characters: Character[];
   ready: boolean;
-  status: OllamaStatus;
   username: string;
+  isAdmin: boolean;
+  catalog: CatalogCard[];
+  submissions: Submission[];
+  plan: Plan | null;
   onOpen: (id: string) => void;
+  /** Starts (or continues) a chat with a catalog character. */
+  onStart: (catalogId: string) => void;
+  onSubmitForPublish: (characterId: string) => void;
+  onWithdraw: (characterId: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
   onLogout: () => void;
 };
+
+type Shelf = 'all' | 'general' | 'adult';
+type Sort = 'recent' | 'longest' | 'name';
+
+const SHELVES: { id: Shelf; label: string }[] = [
+  { id: 'all', label: 'ทั้งหมด' },
+  { id: 'general', label: 'ทั่วไป' },
+  { id: 'adult', label: '18+' },
+];
+
+const SORTS: { id: Sort; label: string }[] = [
+  { id: 'recent', label: 'อ่านล่าสุด' },
+  { id: 'longest', label: 'คุยยาวที่สุด' },
+  { id: 'name', label: 'ชื่อ ก–ฮ' },
+];
+
+const relative = new Intl.RelativeTimeFormat('th', { numeric: 'auto' });
+
+function ago(ts: number) {
+  const minutes = Math.round((ts - Date.now()) / 60000);
+  if (minutes > -1) return 'เมื่อสักครู่';
+  if (minutes > -60) return relative.format(minutes, 'minute');
+  const hours = Math.round(minutes / 60);
+  if (hours > -24) return relative.format(hours, 'hour');
+  const days = Math.round(hours / 24);
+  if (days > -30) return relative.format(days, 'day');
+  return new Date(ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+}
 
 function lastLine(c: Character) {
   const visible = c.messages.filter((m) => !m.failed);
   return visible.length ? visible[visible.length - 1].text : c.firstMessage;
 }
 
-export default function Lobby({ characters, ready, status, username, onOpen, onDelete, onCreate, onLogout }: Props) {
+function lineCount(c: Character) {
+  return c.messages.filter((m) => !m.failed).length;
+}
+
+/** Each story note closes a stretch of the chat, so the next stretch is the episode being written now. */
+function episode(c: Character) {
+  return (c.notes?.length ?? 0) + 1;
+}
+
+export default function Lobby({
+  characters,
+  ready,
+  username,
+  isAdmin,
+  catalog,
+  submissions,
+  plan,
+  onOpen,
+  onStart,
+  onSubmitForPublish,
+  onWithdraw,
+  onDelete,
+  onCreate,
+  onLogout,
+}: Props) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const recent = [...characters].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+  const [publishId, setPublishId] = useState<string | null>(null);
+  const level = plan?.level ?? 0;
+  const submissionOf = (c: Character) => (c.sourceId ? undefined : submissions.find((s) => s.sourceId === c.id));
+  const [query, setQuery] = useState('');
+  const [shelf, setShelf] = useState<Shelf>('all');
+  const [sort, setSort] = useState<Sort>('recent');
+
+  const byRecent = useMemo(() => [...characters].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)), [characters]);
+  const recent = byRecent[0];
+  const mostTalked = useMemo(
+    () => [...characters].filter((c) => lineCount(c) > 0).sort((a, b) => lineCount(b) - lineCount(a)).slice(0, 5),
+    [characters],
+  );
+
+  const books = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = byRecent.filter(
+      (c) =>
+        (shelf === 'all' || (shelf === 'adult') === !!c.adult) &&
+        (!q || [c.name, c.role, c.job, c.userName].some((s) => s?.toLowerCase().includes(q))),
+    );
+    if (sort === 'longest') list.sort((a, b) => lineCount(b) - lineCount(a));
+    if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+    return list;
+  }, [byRecent, query, shelf, sort]);
+
+  const empty = ready && characters.length === 0;
+
+  const shelfCatalog = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return catalog.filter(
+      (e) =>
+        (shelf === 'all' || (shelf === 'adult') === !!e.sheet.adult) &&
+        (!q || [e.sheet.name, e.sheet.role, e.sheet.job].some((s) => s?.toLowerCase().includes(q))),
+    );
+  }, [catalog, query, shelf]);
 
   return (
     <div className="lobby">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">Dream Chat</span>
-          <span className="brand-sub">โรลเพลย์กับตัวละครของคุณ</span>
+          <span className="brand-mark">หลงรักแชท</span>
         </div>
+        {(!empty || catalog.length > 0) && (
+          <label className="search">
+            <MagnifyingGlass size={18} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="ค้นหาชื่อ บทบาท หรืออาชีพ"
+              aria-label="ค้นหาตัวละคร"
+            />
+          </label>
+        )}
         <div className="topbar-actions">
-          <span className="topbar-status">
-            <StatusDot status={status} />
-          </span>
+          <Link className="plan-chip" href="/membership" data-level={level} title="แพ็กเกจสมาชิก">
+            {level > 0 && <Crown size={14} weight="fill" aria-hidden />}
+            {plan?.name ?? 'Free'}
+          </Link>
+          {isAdmin && (
+            <Link className="btn btn-ghost admin-link" href="/admin" aria-label="หน้าแอดมิน" title="หน้าแอดมิน">
+              <GearSix size={18} />
+              <span>แอดมิน</span>
+            </Link>
+          )}
           <button className="btn btn-primary" onClick={onCreate}>
             <Plus size={18} weight="bold" />
             <span>สร้างตัวละคร</span>
@@ -50,80 +165,273 @@ export default function Lobby({ characters, ready, status, username, onOpen, onD
 
       <main className="lobby-main">
         {recent && (
-          <section className="hero" aria-label="เล่นต่อจากครั้งล่าสุด">
-            <button className="hero-cover" onClick={() => onOpen(recent.id)} aria-label={`เปิดแชตกับ ${recent.name}`}>
+          <section className="spread" aria-label="อ่านต่อจากครั้งล่าสุด">
+            <button className="spread-cover book" onClick={() => onOpen(recent.id)} aria-label={`อ่านต่อกับ ${recent.name}`}>
               <img src={recent.avatar} alt="" />
             </button>
-            <div className="hero-text">
-              <p className="hero-kicker">ค้างไว้ที่ตอนล่าสุดกับ</p>
-              <h1 className="hero-name">{recent.name}</h1>
-              <p className="hero-meta">{recent.role}</p>
-              <p className="hero-meta">คุณเล่นเป็น {recent.userName || 'ผู้เล่น'}</p>
-              <blockquote className="hero-excerpt">
+            <div className="spread-page">
+              <p className="spread-episode">อ่านค้างไว้ที่ตอนที่ {episode(recent)}</p>
+              <h1 className="spread-title">{recent.name}</h1>
+              <p className="spread-meta">
+                {recent.role}
+                {recent.adult && <span className="badge-adult">18+</span>}
+              </p>
+              <div className="spread-excerpt">
                 <RoleplayText text={lastLine(recent)} />
-              </blockquote>
-              <button className="btn btn-primary btn-lg" onClick={() => onOpen(recent.id)}>
-                เล่นต่อ
-              </button>
+              </div>
+              <div className="spread-foot">
+                <button className="btn btn-primary btn-lg" onClick={() => onOpen(recent.id)}>
+                  <BookOpen size={20} />
+                  อ่านต่อ
+                </button>
+                <span className="spread-as">คุณเล่นเป็น {recent.userName || 'ผู้เล่น'}</span>
+              </div>
             </div>
           </section>
         )}
 
-        <section aria-labelledby="cast-heading">
-          <div className="section-head">
-            <h2 id="cast-heading" className="section-title">
-              ตัวละครของคุณ
-            </h2>
-            <span className="count">{characters.length}</span>
-          </div>
-
-          {ready && characters.length === 0 ? (
-            <div className="empty">
-              <p className="empty-title">ยังไม่มีตัวละคร</p>
-              <p>สร้างตัวละครแรก กำหนดนิสัย บทบาทของคุณ และรูปภาพ แล้วเริ่มคุยได้เลย</p>
-              <button className="btn btn-primary" onClick={onCreate}>
-                <Plus size={18} weight="bold" />
-                <span>สร้างตัวละคร</span>
-              </button>
-            </div>
-          ) : (
-            <ul className="cast">
-              {characters.map((c) => (
-                <li key={c.id} className="cast-item">
-                  <button className="cover" onClick={() => onOpen(c.id)} aria-label={`เปิดแชตกับ ${c.name}`}>
-                    <img src={c.avatar} alt="" loading="lazy" />
-                    <span className="cover-shade" />
-                    {c.adult && <span className="badge-adult cover-badge">18+</span>}
-                    <span className="cover-title">
-                      <span className="cover-name">{c.name}</span>
-                      <span className="cover-role">{c.role}</span>
-                    </span>
+        {catalog.length > 0 && (
+          <section className="catalog" aria-labelledby="catalog-heading">
+            <div className="shelf-head">
+              <h2 id="catalog-heading" className="section-title">
+                คลังตัวละคร <span className="count">{catalog.length} ตัว</span>
+              </h2>
+              <div className="tabs" role="tablist" aria-label="หมวด">
+                {SHELVES.map((s) => (
+                  <button key={s.id} role="tab" aria-selected={shelf === s.id} onClick={() => setShelf(s.id)}>
+                    {s.label}
                   </button>
-                  <p className="cast-line">
-                    <RoleplayText text={lastLine(c)} />
-                  </p>
-                  <div className="cast-foot">
-                    <span className="cast-as">คุณเป็น {c.userName || 'ผู้เล่น'}</span>
-                    {confirmId === c.id ? (
-                      <span className="confirm">
-                        <button className="link danger" onClick={() => onDelete(c.id)}>
-                          ลบเลย
-                        </button>
-                        <button className="link" onClick={() => setConfirmId(null)}>
-                          ไม่ลบ
-                        </button>
-                      </span>
-                    ) : (
-                      <button className="icon-btn" onClick={() => setConfirmId(c.id)} aria-label={`ลบ ${c.name}`}>
-                        <Trash size={16} />
+                ))}
+              </div>
+            </div>
+            {shelfCatalog.length === 0 ? (
+              <p className="shelf-none">ไม่พบตัวละครในคลังที่ตรงกับการค้นหา</p>
+            ) : (
+              <ul className="books">
+                {shelfCatalog.map((e) => {
+                  const locked = e.tier > level;
+                  const started = characters.some((c) => c.sourceId === e.id);
+                  return (
+                    <li key={e.id} className="book-item" data-locked={locked || undefined}>
+                      <button className="book" onClick={() => onStart(e.id)} aria-label={`${started ? 'อ่านต่อ' : 'เริ่มเรื่องกับ'} ${e.sheet.name}`}>
+                        {e.sheet.avatar ? <img src={e.sheet.avatar} alt="" loading="lazy" /> : <span className="admin-noimg" />}
+                        {e.tier > 0 && (
+                          <span className="tier-badge" data-tier={e.tier}>
+                            {locked ? <LockSimple size={12} weight="bold" aria-hidden /> : <Crown size={12} weight="fill" aria-hidden />}
+                            {TIER_LABEL[e.tier]}
+                          </span>
+                        )}
+                        {e.sheet.adult && <span className="badge-adult book-badge">18+</span>}
                       </button>
-                    )}
+                      <div className="book-info">
+                        <h3 className="book-title">
+                          <button onClick={() => onStart(e.id)}>{e.sheet.name}</button>
+                        </h3>
+                        <p className="book-role">{e.sheet.role}</p>
+                        <p className="book-line">{e.sheet.userRole ? `คุณคือ ${e.sheet.userRole}` : e.sheet.job}</p>
+                        <div className="book-foot">
+                          <span className="book-stats">{e.author ? `โดย ${e.author}` : 'จากหลงรักแชท'}</span>
+                          <span className="book-cta">{locked ? 'อัปเกรดเพื่อคุย' : started ? 'อ่านต่อ' : 'เริ่มเรื่อง'}</span>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {empty ? (
+          <div className="empty">
+            <p className="empty-title">ชั้นหนังสือยังว่างอยู่</p>
+            <p>
+              {catalog.length
+                ? 'เลือกตัวละครจากคลังด้านบนเพื่อเริ่มเรื่องแรก หรือสร้างตัวละครของคุณเอง แชททุกเรื่องเห็นได้เฉพาะคุณ'
+                : 'สร้างตัวละครแรก กำหนดนิสัย บทบาทของคุณ และรูปปก แล้วเริ่มเขียนเรื่องด้วยกันได้เลย แชทเห็นได้เฉพาะคุณ'}
+            </p>
+            <button className="btn btn-primary btn-lg" onClick={onCreate}>
+              <Plus size={18} weight="bold" />
+              <span>สร้างตัวละคร</span>
+            </button>
+          </div>
+        ) : (
+          <div className="library">
+            <section className="shelf" aria-labelledby="shelf-heading">
+              <div className="shelf-head">
+                <h2 id="shelf-heading" className="section-title">
+                  ชั้นหนังสือของคุณ{' '}
+                <span className="count">
+                  {characters.length}
+                  {plan?.features.maxCharacters ? `/${plan.features.maxCharacters}` : ''} เรื่อง
+                </span>
+                </h2>
+                <div className="shelf-tools">
+                  <div className="tabs" role="tablist" aria-label="หมวด">
+                    {SHELVES.map((s) => (
+                      <button key={s.id} role="tab" aria-selected={shelf === s.id} onClick={() => setShelf(s.id)}>
+                        {s.label}
+                      </button>
+                    ))}
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                  <label className="sort">
+                    <span>เรียงตาม</span>
+                    <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+                      {SORTS.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {books.length === 0 ? (
+                <p className="shelf-none">
+                  ไม่พบเรื่องที่ตรงกับ{query.trim() ? ` “${query.trim()}”` : 'หมวดนี้'}{' '}
+                  <button
+                    className="link"
+                    onClick={() => {
+                      setQuery('');
+                      setShelf('all');
+                    }}
+                  >
+                    ดูทั้งหมด
+                  </button>
+                </p>
+              ) : (
+                <ul className="books">
+                  {books.map((c) => (
+                    <li key={c.id} className="book-item">
+                      <button className="book" onClick={() => onOpen(c.id)} aria-label={`อ่าน ${c.name}`}>
+                        <img src={c.avatar} alt="" loading="lazy" />
+                        {c.adult && <span className="badge-adult book-badge">18+</span>}
+                      </button>
+                      <div className="book-info">
+                        <h3 className="book-title">
+                          <button onClick={() => onOpen(c.id)}>{c.name}</button>
+                        </h3>
+                        <p className="book-role">{c.role}</p>
+                        {submissionOf(c) && (
+                          <p className="pub-status" data-status={submissionOf(c)!.status} title={submissionOf(c)!.reviewNote || undefined}>
+                            {STATUS_LABEL[submissionOf(c)!.status]}
+                            {submissionOf(c)!.status === 'rejected' && submissionOf(c)!.reviewNote && `: ${submissionOf(c)!.reviewNote}`}
+                          </p>
+                        )}
+                        <p className="book-line">
+                          <RoleplayText text={lastLine(c)} />
+                        </p>
+                        {publishId === c.id && (
+                          <div className="pub-confirm" role="dialog" aria-label="ส่งเผยแพร่">
+                            {submissionOf(c) ? (
+                              <>
+                                <p>ถอนตัวละครนี้ออกจากคลัง? เรื่องของคุณยังอยู่</p>
+                                <span className="confirm">
+                                  <button
+                                    className="link danger"
+                                    onClick={() => {
+                                      onWithdraw(c.id);
+                                      setPublishId(null);
+                                    }}
+                                  >
+                                    ถอนออก
+                                  </button>
+                                  <button
+                                    className="link"
+                                    onClick={() => {
+                                      onSubmitForPublish(c.id);
+                                      setPublishId(null);
+                                    }}
+                                  >
+                                    ส่งตรวจใหม่
+                                  </button>
+                                  <button className="link" onClick={() => setPublishId(null)}>
+                                    ปิด
+                                  </button>
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <p>ส่งข้อมูลตัวละครให้แอดมินตรวจก่อนขึ้นคลัง แชทของคุณจะไม่ถูกส่งไป</p>
+                                <span className="confirm">
+                                  <button
+                                    className="link"
+                                    onClick={() => {
+                                      onSubmitForPublish(c.id);
+                                      setPublishId(null);
+                                    }}
+                                  >
+                                    ส่งตรวจ
+                                  </button>
+                                  <button className="link" onClick={() => setPublishId(null)}>
+                                    ยกเลิก
+                                  </button>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        <div className="book-foot">
+                          <span className="book-stats">
+                            <span title="จำนวนข้อความ">
+                              <ChatCircle size={14} aria-hidden /> {lineCount(c)}
+                            </span>
+                            <span>ตอนที่ {episode(c)}</span>
+                            <span>{ago(c.updatedAt)}</span>
+                          </span>
+                          {confirmId === c.id ? (
+                            <span className="confirm">
+                              <button className="link danger" onClick={() => onDelete(c.id)}>
+                                ลบเลย
+                              </button>
+                              <button className="link" onClick={() => setConfirmId(null)}>
+                                ไม่ลบ
+                              </button>
+                            </span>
+                          ) : (
+                            <span className="book-actions">
+                              {!c.sourceId && (
+                                <button className="icon-btn" onClick={() => setPublishId(publishId === c.id ? null : c.id)} aria-label={`เผยแพร่ ${c.name}`} title="ส่งเผยแพร่">
+                                  <Megaphone size={16} />
+                                </button>
+                              )}
+                              <button className="icon-btn" onClick={() => setConfirmId(c.id)} aria-label={`ลบ ${c.name}`} title="ลบ">
+                                <Trash size={16} />
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {mostTalked.length > 1 && (
+              <aside className="ranking" aria-labelledby="ranking-heading">
+                <h2 id="ranking-heading" className="ranking-title">
+                  คุยบ่อยที่สุด
+                </h2>
+                <ol>
+                  {mostTalked.map((c, i) => (
+                    <li key={c.id}>
+                      <button onClick={() => onOpen(c.id)}>
+                        <span className="rank">{i + 1}</span>
+                        <img src={c.avatar} alt="" loading="lazy" />
+                        <span className="rank-text">
+                          <span className="rank-name">{c.name}</span>
+                          <span className="rank-meta">{lineCount(c)} ข้อความ</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </aside>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

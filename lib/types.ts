@@ -3,6 +3,8 @@ export type Message = {
   text: string;
   /** Set when the reply could not be generated; never sent back to the model. */
   failed?: boolean;
+  /** The failure was the plan's limit, so the chat offers an upgrade instead of a retry. */
+  limited?: boolean;
 };
 
 export type StoryNote = {
@@ -33,6 +35,8 @@ export type Character = {
   notes?: StoryNote[];
   /** How many messages (from the start) the notes already cover. */
   notedUpTo?: number;
+  /** Catalog entry this chat was started from; set means the character isn't the player's own creation. */
+  sourceId?: string;
   updatedAt: number;
 };
 

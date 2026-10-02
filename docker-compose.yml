@@ -13,6 +13,13 @@ services:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - CLOUDFLARE_MODEL=${CLOUDFLARE_MODEL:-}
       - CLOUDFLARE_FALLBACK_MODEL=${CLOUDFLARE_FALLBACK_MODEL:-}
+      # Comma-separated usernames that are always admins (/admin).
+      - ADMIN_USERNAMES=${ADMIN_USERNAMES:-}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - APP_URL=${APP_URL:-}
+      - LEGAL_OPERATOR_NAME=${LEGAL_OPERATOR_NAME:-}
+      - LEGAL_CONTACT_EMAIL=${LEGAL_CONTACT_EMAIL:-}
     ports:
       - "100.84.226.15:3200:3000"  # tailnet only, for testing without the tunnel
     volumes:
