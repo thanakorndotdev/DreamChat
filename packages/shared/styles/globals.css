@@ -16,7 +16,8 @@
   --danger: #b8392b;
   --ok: #4f7a57;
   --shade: 57, 38, 48;
-  --backdrop-opacity: 0.1;
+  --bubble-user: #f4dce4;
+  --bubble-user-ink: #6e2c46;
 
   --serif: var(--font-mitr), "Mitr", system-ui, sans-serif;
   --sans: var(--font-mitr), "Mitr", system-ui, sans-serif;
@@ -46,7 +47,8 @@
     --danger: #f2897c;
     --ok: #93c79e;
     --shade: 0, 0, 0;
-    --backdrop-opacity: 0.4;
+    --bubble-user: #4a2433;
+    --bubble-user-ink: #f8dbe4;
     color-scheme: dark;
   }
 }
@@ -658,6 +660,16 @@ p {
   color: var(--text);
 }
 
+/* Read by screen readers only. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------- roleplay text ---------- */
 
 .stage {
@@ -1050,35 +1062,11 @@ label.profile-h {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-}
-
-/* The character's portrait sits behind the conversation, dimmed so the text stays readable. */
-.scene-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-}
-.scene-backdrop img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 20%;
-  opacity: var(--backdrop-opacity);
-}
-.scene-backdrop::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to bottom, var(--bg) 0%, transparent 18%, transparent 70%, var(--bg) 100%),
-    radial-gradient(ellipse at center, color-mix(in srgb, var(--bg) 55%, transparent) 0%, color-mix(in srgb, var(--bg) 20%, transparent) 100%);
+  background: var(--bg);
 }
 
 .scene-head {
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--surface);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1095,11 +1083,27 @@ label.profile-h {
   border-radius: 999px;
 }
 .scene-who img {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+}
+.scene-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+/* A small "online" dot, like any messenger. */
+.scene-avatar::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ok);
+  border: 2px solid var(--surface);
 }
 .scene-who > span {
   display: flex;
@@ -1179,74 +1183,141 @@ label.profile-h {
 .transcript {
   flex: 1;
   overflow-y: auto;
-  padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 40px);
+  padding: 24px clamp(12px, 4vw, 32px) 12px;
 }
 .transcript-inner {
-  max-width: 680px;
+  max-width: 720px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 4px;
 }
 
-/* Opens the transcript like the first page of a chapter. */
-.chapter {
-  text-align: center;
-  padding-bottom: 28px;
-  border-bottom: 1px solid var(--line);
-}
-.chapter-num {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--accent);
-}
-.chapter-title {
-  font-family: var(--serif);
-  font-size: clamp(30px, 5vw, 44px);
-  font-weight: 500;
-  line-height: 1.35;
-  margin: 4px 0;
-  text-wrap: balance;
-}
-.chapter-sub {
-  font-size: 14px;
-  color: var(--muted);
-}
-
-.line {
+/* The top of the conversation: who you're talking to, like the first screen of a new chat. */
+.chat-intro {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  padding: 8px 0 24px;
 }
-.speaker {
+.chat-intro img {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 8px;
+  border: 3px solid var(--surface);
+  box-shadow: 0 6px 20px -8px rgba(var(--shade), 0.35);
+}
+.chat-intro-name {
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.chat-intro-sub {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--accent);
-}
-.line-char .prose {
-  text-shadow: 0 1px 12px var(--bg), 0 0 2px var(--bg);
-  font-family: var(--serif);
-  font-size: 18.5px;
-  line-height: 2;
-  white-space: pre-wrap;
-}
-.line-user {
-  padding-left: 18px;
-  border-left: 2px solid var(--accent);
-}
-.line-user .speaker {
   color: var(--muted);
 }
-.line-user .prose {
-  font-size: 16.5px;
-  line-height: 1.85;
-  color: var(--text);
+.chat-intro-chapter {
+  margin-top: 10px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* Messages read like a messenger: the character on the left with their picture, you on the right. */
+.msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(78%, 560px);
+}
+.msg:not([data-grouped]) {
+  margin-top: 10px;
+}
+.msg-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.msg-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.msg[data-grouped] .msg-avatar {
+  visibility: hidden;
+}
+.bubble {
+  min-width: 0;
+  padding: 9px 14px;
+  font-size: 15px;
+  line-height: 1.75;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.msg-char .bubble {
+  background: var(--surface-2);
+  border-radius: 4px 16px 16px 16px;
+}
+.msg-char[data-grouped] .bubble {
+  border-top-left-radius: 16px;
+}
+.msg-user .bubble {
+  background: var(--bubble-user);
+  color: var(--bubble-user-ink);
+  border-radius: 16px 4px 16px 16px;
+}
+.msg-user[data-grouped] .bubble {
+  border-top-right-radius: 16px;
+}
+.bubble .stage {
+  font-style: italic;
+  font-size: 0.93em;
+}
+.msg-user .bubble .stage {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 8px 2px;
+}
+.typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: typing 1.2s ease-in-out infinite;
+}
+.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }
 
 .thinking {
   color: var(--muted);
-  font-family: var(--serif);
 }
 .thinking::after {
   content: '…';
@@ -1260,34 +1331,37 @@ label.profile-h {
 }
 
 .note-error {
+  align-self: center;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: var(--r-md);
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  justify-content: center;
+  gap: 4px 12px;
+  margin-top: 10px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   color: var(--danger);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .composer {
   display: flex;
+  justify-content: center;
   align-items: flex-end;
-  gap: 12px;
-  max-width: 752px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 12px 16px 20px;
+  gap: 10px;
+  padding: 10px clamp(12px, 4vw, 32px) 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
 }
 .composer-box {
   flex: 1;
   min-width: 0;
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  backdrop-filter: blur(12px);
+  max-width: 666px;
+  background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 10px 14px 8px;
+  border-radius: 22px;
+  padding: 6px 16px 4px;
   transition: border-color 0.15s;
 }
 .composer-box:focus-within {
@@ -1299,11 +1373,12 @@ label.profile-h {
   background: transparent;
   border: 0;
   outline: none;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.6;
-  max-height: 200px;
+  max-height: 160px;
   field-sizing: content;
-  min-height: 52px;
+  min-height: 26px;
+  padding: 4px 0 0;
 }
 .composer textarea::placeholder {
   color: var(--muted);
@@ -1313,22 +1388,23 @@ label.profile-h {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 4px;
 }
 .composer-bar .chip {
-  font-family: var(--serif);
+  height: 26px;
+  font-size: 12px;
   color: var(--stage);
 }
 .hint {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--muted);
 }
 .send {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
+  margin-bottom: 4px;
   border-radius: 50%;
   background: var(--accent);
   color: var(--on-accent);
@@ -2827,8 +2903,8 @@ a.btn-primary {
   .book-title {
     font-size: 17px;
   }
-  .line-char .prose {
-    font-size: 17.5px;
+  .msg {
+    max-width: 86%;
   }
   .grid-2,
   .image-step {

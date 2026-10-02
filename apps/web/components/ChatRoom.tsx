@@ -297,9 +297,6 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
       <button className="profile-scrim" aria-label="ปิดข้อมูลตัวละคร" onClick={() => setProfileOpen(false)} />
 
       <section className="scene">
-        <div className="scene-backdrop" aria-hidden="true">
-          <img src={char.avatar} alt="" />
-        </div>
         <header className="scene-head">
           <button className="icon-btn" onClick={onBack} aria-label="กลับหน้าหลัก">
             <ArrowLeft size={20} />
@@ -313,7 +310,9 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
             }}
             aria-label="ดูข้อมูลตัวละคร"
           >
-            <img src={char.avatar} alt="" />
+            <span className="scene-avatar">
+              <img src={char.avatar} alt="" />
+            </span>
             <span>
               <span className="scene-name">
                 {char.name}
@@ -374,12 +373,13 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
 
         <div ref={scroller} className="transcript" aria-live="polite">
           <div className="transcript-inner">
-            <header className="chapter">
-              <p className="chapter-num">ตอนที่ {(char.notes?.length ?? 0) + 1}</p>
-              <h1 className="chapter-title">{char.name}</h1>
-              <p className="chapter-sub">
+            <header className="chat-intro">
+              <img src={char.avatar} alt="" />
+              <h1 className="chat-intro-name">{char.name}</h1>
+              <p className="chat-intro-sub">
                 {char.role} กับ {char.userName || 'คุณ'}
               </p>
+              <span className="chat-intro-chapter">ตอนที่ {(char.notes?.length ?? 0) + 1}</span>
             </header>
             {char.messages.map((m, i) =>
               m.failed ? (
@@ -397,14 +397,23 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
                   )}
                 </div>
               ) : (
-                <Line key={i} message={m} char={char} />
+                <Bubble key={i} message={m} char={char} grouped={sameSender(char.messages[i - 1], m)} />
               ),
             )}
             {streaming !== null && (
-              <div className="line line-char">
-                <p className="speaker">{char.name}</p>
-                <div className="prose">
-                  {streaming ? <RoleplayText text={streaming} /> : <span className="thinking">กำลังคิดคำตอบ</span>}
+              <div className="msg msg-char" data-grouped={sameSender(char.messages[char.messages.length - 1], { sender: 'char' }) || undefined}>
+                <img className="msg-avatar" src={char.avatar} alt="" />
+                <div className="bubble">
+                  <span className="sr-only">{char.name}: </span>
+                  {streaming ? (
+                    <RoleplayText text={streaming} />
+                  ) : (
+                    <span className="typing" role="status" aria-label={`${char.name} กำลังพิมพ์`}>
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -429,7 +438,7 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
                   send();
                 }
               }}
-              rows={2}
+              rows={1}
               placeholder={lastFailed ? 'ลองอีกครั้ง หรือพิมพ์ข้อความใหม่' : `ตอบ ${char.name}… ใส่ *ท่าทาง* ในเครื่องหมายดอกจัน`}
               aria-label="ข้อความ"
             />
@@ -527,12 +536,18 @@ function StoryNotes({ char, pending, noting, error, onJot, onUpdate }: NotesProp
   );
 }
 
-function Line({ message, char }: { message: Message; char: Character }) {
+/** Back-to-back messages from one side sit together, with the character's picture shown once. */
+function sameSender(prev: Pick<Message, 'sender' | 'failed'> | undefined, m: Pick<Message, 'sender'>) {
+  return !!prev && !prev.failed && prev.sender === m.sender;
+}
+
+function Bubble({ message, char, grouped }: { message: Message; char: Character; grouped: boolean }) {
   const isUser = message.sender === 'user';
   return (
-    <div className={`line ${isUser ? 'line-user' : 'line-char'}`}>
-      <p className="speaker">{isUser ? char.userName || 'คุณ' : char.name}</p>
-      <div className="prose">
+    <div className={`msg ${isUser ? 'msg-user' : 'msg-char'}`} data-grouped={grouped || undefined}>
+      {!isUser && <img className="msg-avatar" src={char.avatar} alt="" />}
+      <div className="bubble">
+        <span className="sr-only">{isUser ? char.userName || 'คุณ' : char.name}: </span>
         <RoleplayText text={message.text} />
       </div>
     </div>
