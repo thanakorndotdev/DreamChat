@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { connection } from 'next/server';
+import { headers } from 'next/headers';
 import LandingPage from '@/components/LandingPage';
 import { apiUrl } from '@longrak/shared/forward';
 import type { BillingState } from '@longrak/shared/api-types';
@@ -9,17 +9,26 @@ export const metadata: Metadata = {
   description: 'คุยกับตัวละคร AI สร้างตัวละครในแบบที่ชอบ และเขียนเรื่องราวของคุณเอง เริ่มต้นฟรี พร้อมเลือกแพ็กเกจที่เหมาะกับคุณ',
 };
 
-export default async function Home() {
-  await connection();
-  let billing: BillingState | null = null;
+async function fromApi<T>(path: string, cookie?: string | null): Promise<T | null> {
   try {
-    const response = await fetch(`${apiUrl()}/api/billing`, {
+    const response = await fetch(`${apiUrl()}${path}`, {
       cache: 'no-store',
+      headers: cookie ? { cookie } : undefined,
       signal: AbortSignal.timeout(5000),
     });
-    if (response.ok) billing = await response.json() as BillingState;
+    return response.ok ? await response.json() as T : null;
   } catch {
-    // The introduction stays available when pricing is temporarily unavailable.
+    // The introduction stays available when the api is temporarily unavailable.
+    return null;
   }
-  return <LandingPage plans={billing?.plans ?? null} payments={billing?.payments ?? false} />;
+}
+
+export default async function Home() {
+  // Reading the request headers also keeps this page dynamic, so prices and the signed-in name are always current.
+  const cookie = (await headers()).get('cookie');
+  const [billing, me] = await Promise.all([
+    fromApi<BillingState>('/api/billing'),
+    cookie ? fromApi<{ username: string | null }>('/api/auth/me', cookie) : null,
+  ]);
+  return <LandingPage plans={billing?.plans ?? null} payments={billing?.payments ?? false} username={me?.username ?? null} />;
 }

@@ -5,6 +5,8 @@
   --surface: #fffdfa;
   --surface-2: #f4eeea;
   --line: #e8ddd9;
+  --line-strong: #d6c5c7;
+  --hover: #f5e8e9;
   --accent: #af3457;
   --accent-strong: #912544;
   --on-accent: #ffffff;
@@ -23,6 +25,30 @@
   --r-md: 10px;
   --r-lg: 14px;
   color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Follows the device: the same paper-and-plum palette after dark, with a lighter rose so it stays readable. */
+  :root {
+    --bg: #1b1418;
+    --bg-deep: #161013;
+    --surface: #241b20;
+    --surface-2: #2f242a;
+    --line: #3b2e35;
+    --line-strong: #54434b;
+    --hover: #34262d;
+    --accent: #e57b98;
+    --accent-strong: #f09ab1;
+    --on-accent: #2a0e18;
+    --stage: #cfa1b6;
+    --text: #f3e9e6;
+    --muted: #b4a1a9;
+    --danger: #f2897c;
+    --ok: #93c79e;
+    --shade: 0, 0, 0;
+    --backdrop-opacity: 0.4;
+    color-scheme: dark;
+  }
 }
 
 *,
@@ -115,11 +141,11 @@ p {
 }
 
 .btn-ghost {
-  border: 1px solid #d6c5c7;
+  border: 1px solid var(--line-strong);
   color: var(--text);
 }
 .btn-ghost:hover:not(:disabled) {
-  background: #f5e8e9;
+  background: var(--hover);
 }
 
 .btn-soft {

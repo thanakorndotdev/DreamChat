@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowDown, ArrowRight, BookOpen, ChatCircleDots, Check, Heart, LockSimple, MagicWand, Plus, Sparkle } from '@phosphor-icons/react';
+import { ArrowDown, ArrowRight, BookOpen, ChatCircleDots, Check, Heart, LockSimple, MagicWand, Plus, Sparkle, UserCircle } from '@phosphor-icons/react';
 import Copyright from '@longrak/shared/components/Copyright';
 import { formatPrice, INTERVAL_LABEL, type Plan } from '@longrak/shared/plans';
 import styles from './LandingPage.module.css';
@@ -30,7 +30,7 @@ function planDetails(plan: Plan) {
   ];
 }
 
-export default function LandingPage({ plans, payments }: { plans: Plan[] | null; payments: boolean }) {
+export default function LandingPage({ plans, payments, username }: { plans: Plan[] | null; payments: boolean; username: string | null }) {
   const available = plans?.filter((plan) => plan.active).sort((a, b) => a.level - b.level || a.price - b.price);
   const free = available?.find((plan) => plan.price === 0);
 
@@ -46,7 +46,9 @@ export default function LandingPage({ plans, payments }: { plans: Plan[] | null;
           <nav className={styles.navLinks} aria-label="เมนูหลัก">
             <a href="#about">ทำความรู้จัก</a><a href="#how-it-works">วิธีเริ่มต้น</a><a href="#pricing">แพ็กเกจ</a>
           </nav>
-          <Link className={styles.navCta} href="/chat?login=1">เข้าสู่ระบบ <ArrowRight size={17} aria-hidden /></Link>
+          {username
+            ? <Link className={styles.navCta} href="/chat" title="ไปหน้าแชท"><UserCircle size={19} aria-hidden /><span className={styles.navUser}>{username}</span><ArrowRight size={17} aria-hidden /></Link>
+            : <Link className={styles.navCta} href="/chat?login=1">เข้าสู่ระบบ <ArrowRight size={17} aria-hidden /></Link>}
         </div>
       </header>
 
