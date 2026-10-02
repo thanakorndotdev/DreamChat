@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import LandingPage from '@/components/LandingPage';
 import { apiUrl } from '@longrak/shared/forward';
 import type { BillingState } from '@longrak/shared/api-types';
+import type { CatalogEntry } from '@longrak/shared/catalog';
 
 export const metadata: Metadata = {
   title: 'หลงรักแชท — เรื่องรักที่คุณเป็นคนเขียน',
@@ -26,9 +27,12 @@ async function fromApi<T>(path: string, cookie?: string | null): Promise<T | nul
 export default async function Home() {
   // Reading the request headers also keeps this page dynamic, so prices and the signed-in name are always current.
   const cookie = (await headers()).get('cookie');
-  const [billing, me] = await Promise.all([
+  const [billing, me, catalog] = await Promise.all([
     fromApi<BillingState>('/api/billing'),
     cookie ? fromApi<{ username: string | null }>('/api/auth/me', cookie) : null,
+    fromApi<CatalogEntry[]>('/api/catalog', cookie),
   ]);
-  return <LandingPage plans={billing?.plans ?? null} payments={billing?.payments ?? false} username={me?.username ?? null} />;
+  // The public page never features 18+ characters, even to a signed-in adult.
+  const characters = (catalog ?? []).filter((e) => !e.sheet.adult).sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0)).slice(0, 6);
+  return <LandingPage plans={billing?.plans ?? null} payments={billing?.payments ?? false} username={me?.username ?? null} characters={characters} />;
 }

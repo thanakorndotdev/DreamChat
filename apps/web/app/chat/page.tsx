@@ -27,15 +27,33 @@ export default function ChatPage() {
   const [loginFor, setLoginFor] = useState<{ reason: string; start?: string } | null>(null);
   const [pendingStart, setPendingStart] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (auth.me && !auth.me.username && new URLSearchParams(window.location.search).get('login') === '1') {
-      setLoginFor({ reason: 'เข้าสู่ระบบหรือสมัครเพื่อเริ่มเขียนเรื่องของคุณ' });
-    }
-  }, [auth.me]);
-
   const active = characters.find((c) => c.id === activeId);
   const maxCharacters = billing?.plan.features.maxCharacters ?? 0;
   const full = !!maxCharacters && characters.length >= maxCharacters;
+  const fullMessage = () => `แพ็กเกจ ${billing?.plan.name ?? ''} มีเรื่องได้ ${maxCharacters} เรื่อง ลบเรื่องเก่าหรืออัปเกรดเพื่อเพิ่ม`;
+
+  // Links from the landing page: ?login=1 asks to sign in, ?start=<catalog id> opens that character, ?create=1 the wizard.
+  useEffect(() => {
+    if (!auth.me) return;
+    const params = new URLSearchParams(window.location.search);
+    const start = params.get('start');
+    const signedIn = !!auth.me.username;
+    if (start) {
+      window.history.replaceState(null, '', '/chat');
+      if (signedIn) setPendingStart(start);
+      else setLoginFor({ reason: 'เข้าสู่ระบบหรือสมัครก่อนเริ่มคุย แชทของคุณเป็นความลับ', start });
+    } else if (params.get('create') === '1') {
+      if (signedIn && !ready) return; // wait for the account's chats, to know whether the plan is full
+      window.history.replaceState(null, '', '/chat');
+      if (!signedIn) setLoginFor({ reason: 'เข้าสู่ระบบหรือสมัครก่อนสร้างตัวละคร' });
+      else if (full) toast(fullMessage());
+      else setWizardOpen(true);
+    } else if (!signedIn && params.get('login') === '1') {
+      setLoginFor({ reason: 'เข้าสู่ระบบหรือสมัครเพื่อเริ่มเขียนเรื่องของคุณ' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.me, ready]);
+
 
   useEffect(() => {
     if (saveFailed) toast('บันทึกลงบัญชีไม่สำเร็จ ตรวจการเชื่อมต่อแล้วลองใหม่');
@@ -69,7 +87,6 @@ export default function ChatPage() {
     setActiveId(id);
   };
 
-  const fullMessage = `แพ็กเกจ ${billing?.plan.name ?? ''} มีเรื่องได้ ${maxCharacters} เรื่อง ลบเรื่องเก่าหรืออัปเกรดเพื่อเพิ่ม`;
 
   const create = (c: Character) => {
     add(c);
@@ -85,7 +102,7 @@ export default function ChatPage() {
     // Already chatting with this one: continue that story instead of starting another.
     const existing = characters.find((c) => c.sourceId === catalogId);
     if (existing) return open(existing.id);
-    if (full) return toast(fullMessage);
+    if (full) return toast(fullMessage());
     try {
       const c = await catalog.start(catalogId);
       add(c);
@@ -138,11 +155,11 @@ export default function ChatPage() {
             remove(id);
             toast('ลบเรื่องแล้ว');
           }}
-          onCreate={() => (!signedIn ? askLogin('เข้าสู่ระบบหรือสมัครก่อนสร้างตัวละคร') : full ? toast(fullMessage) : setWizardOpen(true))}
+          onCreate={() => (!signedIn ? askLogin('เข้าสู่ระบบหรือสมัครก่อนสร้างตัวละคร') : full ? toast(fullMessage()) : setWizardOpen(true))}
           onAccount={() => setAccountOpen(true)}
           legacyCount={legacy?.length ?? 0}
           onImportLegacy={() => {
-            if (maxCharacters && characters.length + (legacy?.length ?? 0) > maxCharacters) return toast(fullMessage);
+            if (maxCharacters && characters.length + (legacy?.length ?? 0) > maxCharacters) return toast(fullMessage());
             importLegacy();
             toast('นำเข้าแชทเก่าแล้ว');
           }}
