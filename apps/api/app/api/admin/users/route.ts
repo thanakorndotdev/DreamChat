@@ -37,6 +37,7 @@ export async function GET() {
       guardian_consent: boolean;
       characters: number;
       sessions: number;
+      tokens: number;
       plan_id: string | null;
       source: Subscription['source'] | null;
       status: string | null;
@@ -44,7 +45,7 @@ export async function GET() {
       cancel_at_period_end: boolean | null;
     }[]
   >`
-    SELECT u.id, u.username, u.is_admin, u.created_at, u.email, u.phone, u.consent_version, u.marketing_consent, u.birthdate, u.guardian_consent,
+    SELECT u.id, u.username, u.is_admin, u.created_at, u.email, u.phone, u.consent_version, u.marketing_consent, u.birthdate, u.guardian_consent, u.tokens,
       (SELECT count(*) FROM characters c WHERE c.user_id = u.id) AS characters,
       (SELECT count(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ${Date.now()}) AS sessions,
       sub.plan_id, sub.source, sub.status, sub.current_period_end, sub.cancel_at_period_end
@@ -68,6 +69,7 @@ export async function GET() {
         guardianConsent: u.guardian_consent,
         characters: u.characters,
         sessions: u.sessions,
+        tokens: u.tokens,
         plan: planOf(
           u.plan_id
             ? {

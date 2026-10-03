@@ -2,8 +2,10 @@ import { adultBlocker } from '@longrak/shared/age';
 import { OFFLINE_HINT, resolveHost } from '@/lib/host';
 import { isAdultUser, requireMember } from '@/lib/auth';
 import { effectivePlan, releaseUsage, reserveUsage } from '@/lib/billing';
+import { type Charge, chargeReply, refundReply } from '@/lib/tokens';
 import { db } from '@longrak/db';
 import { type ChatMessage, draftPrompt, notePrompt, replyPrompt } from '@/lib/prompts';
+import type { Paywall } from '@longrak/shared/tokens';
 import type { Character, Message } from '@longrak/shared/types';
 import { workersAi, workersAiChat } from '@/lib/workersAi';
 
@@ -11,7 +13,7 @@ import { workersAi, workersAiChat } from '@/lib/workersAi';
  * The only way to the AI. The browser names a task and its inputs; the prompt itself is built
  * here (lib/server/prompts.ts) from the stored character, the plan and the account's real age.
  *
- *   { task: 'reply', characterId, history: [{ sender, text }] }
+ *   { task: 'reply', characterId, history: [{ sender, text }], payWithTokens? }   → 402 Paywall JSON past the free replies
  *   { task: 'note', characterId }                → header X-Note-Up-To
  *   { task: 'draft', outline, adult }
  */
@@ -53,6 +55,7 @@ export async function POST(req: Request) {
   let messages: ChatMessage[];
   let maxTokens: number;
   let kind: 'chat' | 'other' = 'other';
+  let charId = '';
   const headers: Record<string, string> = { 'Content-Type': 'application/x-ndjson; charset=utf-8' };
 
   if (body.task === 'reply') {
@@ -74,6 +77,7 @@ export async function POST(req: Request) {
     messages = replyPrompt(char, history, { notesInPrompt: plan.features.memoryNotes, historyWindow: plan.features.historyWindow, rude });
     maxTokens = 1024;
     kind = 'chat';
+    charId = char.id;
   } else if (body.task === 'note') {
     if (plan.features.memoryNotes <= 0) return bad('แพ็กเกจนี้ไม่มีความจำระยะยาว', 402);
     const char = await loadCharacter(user.id, body.characterId);
@@ -91,13 +95,15 @@ export async function POST(req: Request) {
     return bad('ไม่รู้จักคำขอนี้');
   }
 
-  if (!(await reserveUsage(user.id, kind, kind === 'chat' ? plan.features.dailyMessages : OTHER_PER_DAY))) {
-    return bad(
-      kind === 'chat'
-        ? `วันนี้คุยครบ ${plan.features.dailyMessages} ข้อความของแพ็กเกจ ${plan.name} แล้ว พรุ่งนี้คุยต่อได้ หรืออัปเกรดเพื่อคุยเพิ่ม`
-        : 'วันนี้ใช้งาน AI ครบโควตาแล้ว ลองใหม่พรุ่งนี้',
-      429,
-    );
+  // A reply uses the free messages, then tokens; notes and drafts have their own daily cap.
+  let release: () => Promise<void>;
+  if (kind === 'chat') {
+    const charge: Charge | Paywall = await chargeReply(user.id, plan, charId, body.payWithTokens === true);
+    if ('code' in charge) return Response.json(charge, { status: 402 });
+    release = () => refundReply(user.id, charge);
+  } else {
+    if (!(await reserveUsage(user.id, 'other', OTHER_PER_DAY))) return bad('วันนี้ใช้งาน AI ครบโควตาแล้ว ลองใหม่พรุ่งนี้', 429);
+    release = () => releaseUsage(user.id, 'other');
   }
 
   const cf = await workersAi();
@@ -105,7 +111,7 @@ export async function POST(req: Request) {
     // The plan picks the model; nothing from the browser does.
     const res = await workersAiChat(cf, plan.features.model || cf.model, messages, req.signal, maxTokens);
     if (!res.ok || !res.body) {
-      await releaseUsage(user.id, kind);
+      await release();
       // The detail (already logged by workersAiChat) can name the account or model; the reader only needs to retry.
       return bad(res.status === 499 ? 'หยุดแล้ว' : 'AI ไม่ว่างชั่วคราว ลองส่งใหม่อีกครั้ง', res.status === 499 ? 499 : 502);
     }
@@ -116,7 +122,7 @@ export async function POST(req: Request) {
   const host = resolveHost(body.host);
   const model = process.env.OLLAMA_MODEL?.trim() || (typeof body.model === 'string' ? body.model : '');
   if (!host || !model) {
-    await releaseUsage(user.id, kind);
+    await release();
     return bad('ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ AI', 503);
   }
   let res: Response;
@@ -128,11 +134,11 @@ export async function POST(req: Request) {
       signal: req.signal,
     });
   } catch {
-    await releaseUsage(user.id, kind);
+    await release();
     return bad(OFFLINE_HINT, 502);
   }
   if (!res.ok || !res.body) {
-    await releaseUsage(user.id, kind);
+    await release();
     const notFound = res.status === 404 ? ` — ไม่พบโมเดล "${model}" ลองรัน ollama pull ${model}` : '';
     return bad(`Ollama ตอบกลับ HTTP ${res.status}${notFound}`, 502);
   }

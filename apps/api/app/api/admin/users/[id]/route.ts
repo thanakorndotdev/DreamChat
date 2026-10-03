@@ -4,6 +4,7 @@ import { EMAIL_RULE, normalizePhone } from '@longrak/shared/legal';
 import { FREE_PLAN_ID } from '@longrak/shared/plans';
 import { getPlan, getSubscription, isLive, setSubscription } from '@/lib/billing';
 import { db } from '@longrak/db';
+import { adjustTokens } from '@/lib/tokens';
 
 async function target(id: string) {
   const sql = await db();
@@ -23,7 +24,7 @@ class Refuse extends Error {
 
 /**
  * Any of: username, password, email, phone, isAdmin, signOut (ends every session of that account),
- * grant { planId, days } (free membership, added to what's left of the same plan) or revoke (ends a non-Stripe membership).
+ * tokens { delta, note } (adds or takes tokens; never below zero), grant { planId, days } (free membership, added to what's left of the same plan) or revoke (ends a non-Stripe membership).
  * All or nothing: one invalid field leaves the account unchanged.
  */
 export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/users/[id]'>) {
@@ -43,6 +44,7 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/users/[i
     revoke?: unknown;
     birthdate?: unknown;
     guardianConsent?: unknown;
+    tokens?: { delta?: unknown; note?: unknown };
   };
 
   // Checked up front: these need lookups outside the transaction.
@@ -98,6 +100,12 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/admin/users/[i
   } catch (e) {
     if (e instanceof Refuse) return new Response(e.message, { status: e.status });
     throw e;
+  }
+
+  if (body.tokens) {
+    const delta = Math.trunc(Number(body.tokens.delta) || 0);
+    const note = typeof body.tokens.note === 'string' && body.tokens.note.trim() ? body.tokens.note.trim().slice(0, 200) : `โดย ${me.username}`;
+    if (delta && !(await adjustTokens(user.id, delta, note))) return new Response('หักโทเคนเกินยอดที่มีไม่ได้', { status: 400 });
   }
 
   if (body.grant && !body.revoke) {

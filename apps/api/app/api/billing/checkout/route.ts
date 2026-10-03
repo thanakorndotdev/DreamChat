@@ -1,26 +1,7 @@
 import { requireMember } from '@/lib/auth';
-import { couponProblem, getCoupon, getPlan, getSubscription, isLive } from '@/lib/billing';
+import { couponProblem, customerFor, getCoupon, getPlan, getSubscription, isLive } from '@/lib/billing';
 import { db } from '@longrak/db';
 import { appUrl, stripe, stripeConfigured } from '@/lib/stripe';
-
-/** The account's Stripe customer, created on first checkout. */
-async function customerFor(user: { id: number; username: string; email: string | null; phone: string | null }) {
-  const sql = await db();
-  const [row] = await sql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM users WHERE id = ${user.id}`;
-  if (row.stripe_customer_id) {
-    // A customer made with test keys doesn't exist once live keys are in, and vice versa.
-    const found = await stripe<{ deleted?: boolean }>('GET', `customers/${row.stripe_customer_id}`).catch(() => null);
-    if (found && !found.deleted) return row.stripe_customer_id;
-  }
-  const customer = await stripe<{ id: string }>('POST', 'customers', {
-    email: user.email ?? undefined,
-    phone: user.phone ?? undefined,
-    name: user.username,
-    metadata: { userId: user.id },
-  });
-  await sql`UPDATE users SET stripe_customer_id = ${customer.id} WHERE id = ${user.id}`;
-  return customer.id;
-}
 
 /** Stripe coupons can't be edited, so one is made per code (and remade when the admin changes the code). */
 async function stripeCouponFor(code: string) {

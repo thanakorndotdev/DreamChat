@@ -81,6 +81,7 @@ export default function UsersPanel({ toast }: Props) {
               <th>อายุ</th>
               <th>สิทธิ์</th>
               <th>เรื่อง</th>
+              <th>โทเคน</th>
               <th>PDPA</th>
               <th>สมัครเมื่อ</th>
               <th aria-label="จัดการ" />
@@ -111,6 +112,7 @@ export default function UsersPanel({ toast }: Props) {
                 </td>
                 <td data-label="สิทธิ์">{u.isAdmin ? <span className="admin-badge">แอดมิน</span> : 'ผู้ใช้'}</td>
                 <td data-label="เรื่อง">{u.characters}</td>
+                <td data-label="โทเคน">{u.tokens.toLocaleString('th-TH')}</td>
                 <td data-label="PDPA">{u.consented ? (u.marketing ? 'ยอมรับ + รับข่าวสาร' : 'ยอมรับ') : 'ยังไม่ยอมรับ'}</td>
                 <td data-label="สมัครเมื่อ">{formatDate(u.createdAt)}</td>
                 <td className="admin-actions">
@@ -169,6 +171,8 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
   const [revoke, setRevoke] = useState(false);
   const [birthdate, setBirthdate] = useState(user?.birthdate ?? '');
   const [guardian, setGuardian] = useState(user?.guardianConsent ?? false);
+  const [tokenDelta, setTokenDelta] = useState('');
+  const [tokenNote, setTokenNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -191,6 +195,7 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
       if (revoke) changes.revoke = true;
       else if (grantPlan) changes.grant = { planId: grantPlan, days: Number(grantDays) };
       if (isAdmin !== user.isAdmin) changes.isAdmin = isAdmin;
+      if (Math.trunc(Number(tokenDelta))) changes.tokens = { delta: Math.trunc(Number(tokenDelta)), note: tokenNote };
       // A new password should lock out whoever is signed in with the old one.
       if (signOut || password) changes.signOut = true;
       if (Object.keys(changes).length) await adminFetch(`/api/admin/users/${user.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
@@ -284,6 +289,22 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
                 ยกเลิกแพ็กเกจ กลับเป็น Free ทันที
               </label>
             )}
+          </fieldset>
+        )}
+        {user && (
+          <fieldset className="field grant">
+            <legend className="field-label">โทเคน</legend>
+            <p className="help">ตอนนี้มี {user.tokens.toLocaleString('th-TH')} โทเคน</p>
+            <div className="grid-2">
+              <label className="field">
+                <span className="field-label">เพิ่มหรือหัก</span>
+                <input type="number" step={1} value={tokenDelta} onChange={(e) => setTokenDelta(e.target.value)} placeholder="เช่น 500 หรือ -100" />
+              </label>
+              <label className="field">
+                <span className="field-label">เหตุผล</span>
+                <input value={tokenNote} onChange={(e) => setTokenNote(e.target.value)} maxLength={200} placeholder="เช่น ชดเชยระบบล่ม" />
+              </label>
+            </div>
           </fieldset>
         )}
         <label className="toggle admin-toggle">

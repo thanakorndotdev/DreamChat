@@ -136,6 +136,14 @@ export default function ChatPage() {
           catalog={catalog.catalog}
           submissions={catalog.submissions}
           plan={billing?.plan ?? null}
+          tokens={signedIn && billing && !billing.guest ? billing.tokens : null}
+          onCheckIn={async () => {
+            const res = await fetch('/api/tokens/checkin', { method: 'POST' }).catch(() => null);
+            if (!res) return toast('เช็คอินไม่สำเร็จ ตรวจการเชื่อมต่อแล้วลองใหม่');
+            if (!res.ok) toast((await res.text()) || 'เช็คอินไม่สำเร็จ');
+            else toast(`เช็คอินแล้ว ได้ ${((await res.json()) as { granted: number }).granted} โทเคน`);
+            refreshBilling();
+          }}
           onOpen={open}
           onStart={startFromCatalog}
           onSubmitForPublish={async (id) => {

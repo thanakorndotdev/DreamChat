@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from 'next';
-import { Mitr } from 'next/font/google';
+import { Chonburi, Mitr } from 'next/font/google';
 import '@longrak/shared/styles/globals.css';
+import './site.css';
 
-/** One family for the whole site: Mitr for both headings (--font-serif) and UI text (--font-sans). */
+/** Mitr for reading and chatting: soft and light-novel romantic. */
 const mitr = Mitr({
   subsets: ['thai', 'latin'],
   weight: ['300', '400', '500', '600', '700'],
   variable: '--font-mitr',
+});
+
+/** Chonburi only for character names and headings (--display in globals.css). It comes in one weight. */
+const chonburi = Chonburi({
+  subsets: ['thai', 'latin'],
+  weight: '400',
+  variable: '--font-chonburi',
 });
 
 export const metadata: Metadata = {
@@ -23,7 +31,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={mitr.variable}>
+    <html lang="th" className={`${mitr.variable} ${chonburi.variable}`}>
       <body>{children}</body>
     </html>
   );

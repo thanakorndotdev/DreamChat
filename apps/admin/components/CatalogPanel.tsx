@@ -126,6 +126,7 @@ const LONG: { key: TextKey; label: string; rows: number; help?: string }[] = [
 function CatalogEditor({ entry, toast, onClose }: { entry: CatalogEntry | null; toast: (t: string) => void; onClose: (changed: boolean) => void }) {
   const [sheet, setSheet] = useState<CharacterSheet>(entry?.sheet ?? EMPTY_SHEET);
   const [tier, setTier] = useState(entry?.tier ?? 0);
+  const [unlockPrice, setUnlockPrice] = useState(entry?.unlockPrice == null ? '' : String(entry.unlockPrice));
   const [note, setNote] = useState(entry?.reviewNote ?? '');
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -136,9 +137,9 @@ function CatalogEditor({ entry, toast, onClose }: { entry: CatalogEntry | null; 
     setBusy(true);
     try {
       if (entry) {
-        await adminFetch(`/api/admin/catalog/${encodeURIComponent(entry.id)}`, { method: 'PATCH', body: JSON.stringify({ sheet, tier, status, reviewNote: note }) });
+        await adminFetch(`/api/admin/catalog/${encodeURIComponent(entry.id)}`, { method: 'PATCH', body: JSON.stringify({ sheet, tier, unlockPrice, status, reviewNote: note }) });
       } else {
-        await adminFetch('/api/admin/catalog', { method: 'POST', body: JSON.stringify({ sheet, tier, status }) });
+        await adminFetch('/api/admin/catalog', { method: 'POST', body: JSON.stringify({ sheet, tier, unlockPrice, status }) });
       }
       toast(done);
       onClose(true);
@@ -220,6 +221,10 @@ function CatalogEditor({ entry, toast, onClose }: { entry: CatalogEntry | null; 
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="field">
+              <span className="field-label">ราคาปลดล็อกคุยไม่จำกัด (โทเคน)</span>
+              <input type="number" min={0} value={unlockPrice} onChange={(e) => setUnlockPrice(e.target.value)} placeholder="เว้นว่าง ใช้ราคากลางในแท็บโทเคน" />
             </label>
           </div>
           {LONG.map((f) => (

@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowClockwise, ArrowLeft, Bug, Camera, IdentificationCard, Notebook, PaperPlaneRight, Stop, Trash, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowLeft, Bug, Camera, Coins, IdentificationCard, LockKeyOpen, Notebook, PaperPlaneRight, Stop, Trash, X } from '@phosphor-icons/react';
 import RoleplayText from './RoleplayText';
 import { adultBlocker } from '@longrak/shared/age';
 import { fileToAvatar } from '@longrak/shared/image';
 import { NOTE_EVERY, pendingMessages, writeNote } from '@/lib/memory';
 import Link from 'next/link';
 import type { BillingState } from '@longrak/shared/api-types';
-import { HISTORY_WINDOW, LimitError, streamAi } from '@/lib/ollama';
+import { HISTORY_WINDOW, LimitError, PaywallError, streamAi } from '@/lib/ollama';
+import { type CharacterAccess, type Paywall, formatTokens } from '@longrak/shared/tokens';
 import type { Character, Message } from '@longrak/shared/types';
 
 type Props = {
@@ -16,7 +17,7 @@ type Props = {
   host: string;
   model: string;
   billing: BillingState | null;
-  /** Called after each reply so the daily counter stays current. */
+  /** Called after each reply (and unlock) so the daily counter and token balance stay current. */
   onReplied: () => void;
   onReport: () => void;
   /** The account is 18+ by its birthdate; otherwise rude mode stays off (the server enforces it too). */
@@ -28,7 +29,16 @@ type Props = {
 export default function ChatRoom({ character: char, host, model, billing, onReplied, onReport, userAdult, onUpdate, onBack }: Props) {
   const features = billing?.plan.features;
   const memoryOn = (features?.memoryNotes ?? 30) > 0;
-  const left = features?.dailyMessages ? Math.max(0, features.dailyMessages - (billing?.usage.chat ?? 0)) : null;
+  const [access, setAccess] = useState<CharacterAccess | null>(null);
+  const [paywall, setPaywall] = useState<Paywall | null>(null);
+  const [payTokens, setPayTokens] = useState(readPayTokens);
+  const [unlocking, setUnlocking] = useState(false);
+  const balance = billing?.tokens.balance ?? 0;
+  const cost = billing?.economy.messageCost ?? 0;
+  // Free replies left: the smaller of today's and this character's allowance (null = no cap).
+  const dailyLeft = features?.dailyMessages ? Math.max(0, features.dailyMessages - (billing?.usage.chat ?? 0)) : null;
+  const charLeft = features?.freePerCharacter ? Math.max(0, features.freePerCharacter - (access?.freeUsed ?? 0)) : null;
+  const left = access?.unlocked ? null : dailyLeft === null ? charLeft : charLeft === null ? dailyLeft : Math.min(dailyLeft, charLeft);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -43,10 +53,28 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
   const abort = useRef<AbortController | null>(null);
   const busy = streaming !== null;
 
+  const loadAccess = () =>
+    fetch(`/api/characters/${encodeURIComponent(char.id)}/access`)
+      .then((r) => (r.ok ? (r.json() as Promise<CharacterAccess>) : null))
+      .then(setAccess)
+      .catch(() => {});
+
   useEffect(() => {
     textarea.current?.focus();
+    setPaywall(null);
+    setAccess(null);
+    loadAccess();
     return () => abort.current?.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [char.id]);
+
+  const choosePayTokens = (on: boolean) => {
+    setPayTokens(on);
+    try {
+      if (on) localStorage.setItem(PAY_TOKENS_KEY, '1');
+      else localStorage.removeItem(PAY_TOKENS_KEY);
+    } catch {}
+  };
 
   useEffect(() => {
     const el = scroller.current;
@@ -83,10 +111,11 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
     if (memoryOn && !busy && !noting && !noteError && pending >= NOTE_EVERY) jot(char);
   }, [pending, busy, noting, noteError, memoryOn]);
 
-  const generate = async (history: Message[]) => {
+  const generate = async (history: Message[], pay = payTokens) => {
     const controller = new AbortController();
     abort.current = controller;
     setStreaming('');
+    setPaywall(null);
     try {
       const { text: reply } = await streamAi(
         {
@@ -97,6 +126,7 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
             .slice(-(features?.historyWindow ?? HISTORY_WINDOW))
             .map((m) => ({ sender: m.sender, text: m.text.slice(0, 4000) })),
           rude: !!char.adult && !blocker,
+          payWithTokens: pay,
           host,
           model,
           signal: controller.signal,
@@ -110,6 +140,7 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
       }));
     } catch (err) {
       const partial = controller.signal.aborted;
+      if (err instanceof PaywallError) setPaywall(err.paywall);
       onUpdate((c) => ({
         ...c,
         messages: [
@@ -123,6 +154,7 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
       abort.current = null;
       setStreaming(null);
       onReplied();
+      loadAccess();
     }
   };
 
@@ -136,10 +168,31 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
     generate(history);
   };
 
-  const retry = () => {
+  const retry = (pay = payTokens) => {
     const history = char.messages.filter((m) => !m.failed);
     onUpdate((c) => ({ ...c, messages: history }));
-    generate(history);
+    generate(history, pay);
+  };
+
+  /** Agrees to pay for replies past the free ones, then sends the waiting message. */
+  const payAndRetry = () => {
+    choosePayTokens(true);
+    retry(true);
+  };
+
+  const unlock = async () => {
+    setUnlocking(true);
+    try {
+      const res = await fetch(`/api/characters/${encodeURIComponent(char.id)}/unlock`, { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      await loadAccess();
+      onReplied();
+      retry();
+    } catch (err) {
+      setPaywall((p) => p && { ...p, message: err instanceof Error ? err.message : 'ปลดล็อกไม่สำเร็จ' });
+    } finally {
+      setUnlocking(false);
+    }
   };
 
   const clear = () => {
@@ -386,15 +439,33 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
             </header>
             {char.messages.map((m, i) =>
               m.failed ? (
-                <div key={i} className="note-error" role="alert">
-                  <span>{m.text}</span>
-                  {m.limited && (
+                <div key={i} className="note-error" role="alert" data-paywall={(paywall && i === char.messages.length - 1) || undefined}>
+                  <span>{paywall && i === char.messages.length - 1 ? paywall.message : m.text}</span>
+                  {paywall && i === char.messages.length - 1 && (
+                    <span className="paywall-actions">
+                      {paywall.balance >= paywall.cost && (
+                        <button className="btn btn-soft" onClick={payAndRetry} disabled={busy}>
+                          <Coins size={16} aria-hidden /> ส่งด้วย {formatTokens(paywall.cost)} โทเคน
+                        </button>
+                      )}
+                      {paywall.balance >= paywall.unlockPrice && (
+                        <button className="btn btn-soft" onClick={unlock} disabled={busy || unlocking}>
+                          <LockKeyOpen size={16} aria-hidden /> {unlocking ? 'กำลังปลดล็อก…' : `ปลดล็อกไม่จำกัด ${formatTokens(paywall.unlockPrice)} โทเคน`}
+                        </button>
+                      )}
+                      <Link className="btn btn-ghost" href="/membership#tokens">
+                        เติมโทเคน
+                      </Link>
+                      <span className="help">มี {formatTokens(paywall.balance)} โทเคน</span>
+                    </span>
+                  )}
+                  {m.limited && !(paywall && i === char.messages.length - 1) && (
                     <Link className="link" href="/membership">
                       ดูแพ็กเกจ
                     </Link>
                   )}
                   {i === char.messages.length - 1 && (
-                    <button className="link" onClick={retry} disabled={busy}>
+                    <button className="link" onClick={() => retry()} disabled={busy}>
                       <ArrowClockwise size={14} /> ลองอีกครั้ง
                     </button>
                   )}
@@ -450,10 +521,30 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
                 *ท่าทาง*
               </button>
               <span className="hint">
-                {left !== null ? (
-                  <Link className="quota" href="/membership" data-low={left <= 5 || undefined}>
-                    เหลือ {left} ข้อความวันนี้
+                {access?.unlocked ? (
+                  <span className="quota" data-unlocked>
+                    <LockKeyOpen size={14} aria-hidden /> ปลดล็อกแล้ว คุยได้ไม่จำกัด
+                  </span>
+                ) : left !== null && left > 0 ? (
+                  <Link
+                    className="quota"
+                    href="/membership"
+                    data-low={left <= 5 || undefined}
+                    title={dailyLeft !== null && (charLeft === null || dailyLeft <= charLeft) ? 'ข้อความฟรีของวันนี้' : `ข้อความฟรีกับ ${char.name}`}
+                  >
+                    ฟรีอีก {left} ข้อความ
                   </Link>
+                ) : left === 0 ? (
+                  <span className="quota-tokens">
+                    <Link className="quota" href="/membership#tokens" data-low={balance < cost || undefined}>
+                      <Coins size={14} aria-hidden /> {payTokens ? `ข้อความละ ${formatTokens(cost)}` : 'ฟรีครบแล้ว'} · มี {formatTokens(balance)}
+                    </Link>
+                    {payTokens && (
+                      <button type="button" className="link" onClick={() => choosePayTokens(false)} title="ถามก่อนใช้โทเคนทุกครั้งที่ข้อความฟรีหมด">
+                        หยุดใช้โทเคน
+                      </button>
+                    )}
+                  </span>
                 ) : (
                   'Enter ส่ง · Shift+Enter ขึ้นบรรทัด'
                 )}
@@ -473,6 +564,17 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
       </section>
     </div>
   );
+}
+
+/** The player agreed to spend tokens once the free replies run out; remembered in this browser only. */
+const PAY_TOKENS_KEY = 'longrak_pay_tokens';
+
+function readPayTokens() {
+  try {
+    return localStorage.getItem(PAY_TOKENS_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 type NotesProps = {

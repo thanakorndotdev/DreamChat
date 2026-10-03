@@ -35,6 +35,8 @@ export type CatalogEntry = {
   id: string;
   sheet: CharacterSheet;
   tier: number;
+  /** Tokens to unlock unlimited chat; null = the default price. */
+  unlockPrice: number | null;
   status: CatalogStatus;
   reviewNote: string;
   author: string | null;

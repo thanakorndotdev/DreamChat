@@ -22,9 +22,11 @@ const questions = [
 ];
 
 function planDetails(plan: Plan) {
-  const { dailyMessages, maxCharacters, historyWindow, memoryNotes } = plan.features;
+  const { dailyMessages, freePerCharacter, checkinTokens, maxCharacters, historyWindow, memoryNotes } = plan.features;
   return [
-    dailyMessages ? `${dailyMessages.toLocaleString('th-TH')} ข้อความต่อวัน` : 'ไม่จำกัดจำนวนข้อความต่อวัน',
+    dailyMessages ? `คุยฟรี ${dailyMessages.toLocaleString('th-TH')} ข้อความต่อวัน` : 'ไม่จำกัดจำนวนข้อความต่อวัน',
+    ...(freePerCharacter ? [`ฟรี ${freePerCharacter} ข้อความต่อตัวละคร จากนั้นใช้โทเคน`] : []),
+    ...(checkinTokens ? [`เช็คอินรับ ${checkinTokens.toLocaleString('th-TH')} โทเคนทุกวัน`] : []),
     maxCharacters ? `เก็บเรื่องราวได้ ${maxCharacters} เรื่อง` : 'เก็บเรื่องราวได้ไม่จำกัด',
     `จำบทสนทนาล่าสุด ${historyWindow} ข้อความ`,
     memoryNotes ? `บันทึกความทรงจำ ${memoryNotes} บันทึก` : 'ความจำจากบทสนทนาล่าสุด',

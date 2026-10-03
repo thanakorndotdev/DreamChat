@@ -43,7 +43,9 @@ export default function PlansPanel({ toast }: { toast: (text: string) => void })
             <tr>
               <th>แพ็กเกจ</th>
               <th>ราคา</th>
-              <th>ข้อความ/วัน</th>
+              <th>ฟรี/วัน</th>
+              <th>ฟรี/ตัวละคร</th>
+              <th>เช็คอิน</th>
               <th>ความจำ</th>
               <th>เรื่องสูงสุด</th>
               <th>สมาชิก</th>
@@ -58,7 +60,9 @@ export default function PlansPanel({ toast }: { toast: (text: string) => void })
                   {p.name}
                 </td>
                 <td data-label="ราคา">{p.price ? `${formatPrice(p.price)}/${INTERVAL_LABEL[p.interval]}` : 'ฟรี'}</td>
-                <td data-label="ข้อความ/วัน">{p.features.dailyMessages || 'ไม่จำกัด'}</td>
+                <td data-label="ฟรี/วัน">{p.features.dailyMessages || 'ไม่จำกัด'}</td>
+                <td data-label="ฟรี/ตัวละคร">{p.features.freePerCharacter || 'ไม่จำกัด'}</td>
+                <td data-label="เช็คอิน">{p.features.checkinTokens ? `${p.features.checkinTokens} โทเคน/วัน` : '—'}</td>
                 <td data-label="ความจำ">
                   {p.features.historyWindow} ข้อความ, {p.features.memoryNotes} บันทึก
                 </td>
@@ -113,7 +117,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan; onClose: () =>
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const num = (key: 'dailyMessages' | 'historyWindow' | 'memoryNotes' | 'maxCharacters', v: string) => setF((x) => ({ ...x, [key]: Number(v) || 0 }));
+  const num = (key: 'dailyMessages' | 'freePerCharacter' | 'checkinTokens' | 'historyWindow' | 'memoryNotes' | 'maxCharacters', v: string) => setF((x) => ({ ...x, [key]: Number(v) || 0 }));
 
   const save = async () => {
     setBusy(true);
@@ -177,9 +181,19 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan; onClose: () =>
             </label>
           )}
           <label className="field">
-            <span className="field-label">ข้อความต่อวัน</span>
+            <span className="field-label">ข้อความฟรีต่อวัน</span>
             <input type="number" min={0} value={f.dailyMessages} onChange={(e) => num('dailyMessages', e.target.value)} />
-            <span className="help">0 = ไม่จำกัด</span>
+            <span className="help">0 = ไม่จำกัดต่อวัน เกินแล้วใช้โทเคน</span>
+          </label>
+          <label className="field">
+            <span className="field-label">ข้อความฟรีต่อตัวละคร</span>
+            <input type="number" min={0} value={f.freePerCharacter ?? 0} onChange={(e) => num('freePerCharacter', e.target.value)} />
+            <span className="help">นับรวมตลอด 0 = ไม่จำกัด เกินแล้วใช้โทเคนหรือปลดล็อกตัวนั้น</span>
+          </label>
+          <label className="field">
+            <span className="field-label">โทเคนเช็คอินรายวัน</span>
+            <input type="number" min={0} value={f.checkinTokens ?? 0} onChange={(e) => num('checkinTokens', e.target.value)} />
+            <span className="help">0 = ไม่มีเช็คอิน</span>
           </label>
           <label className="field">
             <span className="field-label">เรื่องสูงสุดต่อบัญชี</span>

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, Crown } from '@phosphor-icons/react';
+import { ArrowLeft, CalendarCheck, Check, Coins, Crown } from '@phosphor-icons/react';
 import type { BillingState } from '@longrak/shared/api-types';
 import { useToast } from '@longrak/shared/components/Toast';
-import { INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
+import { FREE_PLAN_ID, INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
+import { formatTokens } from '@longrak/shared/tokens';
 import AuthScreen from '@/components/AuthScreen';
 import ConsentScreen from '@/components/ConsentScreen';
 import SiteFooter from '@/components/SiteFooter';
@@ -16,7 +17,9 @@ type Discount = { code: string; duration: 'once' | 'forever'; prices: Record<str
 function limits(p: Plan) {
   const f = p.features;
   return [
-    f.dailyMessages ? `คุยได้ ${f.dailyMessages.toLocaleString('th-TH')} ข้อความต่อวัน` : 'คุยได้ไม่จำกัด',
+    f.dailyMessages ? `คุยฟรี ${f.dailyMessages.toLocaleString('th-TH')} ข้อความต่อวัน` : 'ไม่จำกัดข้อความต่อวัน',
+    ...(f.freePerCharacter ? [`ฟรี ${f.freePerCharacter} ข้อความต่อตัวละคร`] : []),
+    ...(f.checkinTokens ? [`เช็คอินรับ ${f.checkinTokens.toLocaleString('th-TH')} โทเคน/วัน`] : []),
     `AI จำ ${f.historyWindow} ข้อความล่าสุด`,
     f.memoryNotes ? `ความจำระยะยาว ${f.memoryNotes} บันทึก` : 'ไม่มีความจำระยะยาว',
     f.maxCharacters ? `มีเรื่องได้ ${f.maxCharacters} เรื่อง` : 'มีเรื่องได้ไม่จำกัด',
@@ -34,6 +37,7 @@ export default function MembershipPage() {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
+  const [tokensPaid, setTokensPaid] = useState(false);
   const { toast, Toast } = useToast();
 
   const load = useCallback(
@@ -49,7 +53,20 @@ export default function MembershipPage() {
   );
 
   useEffect(() => {
-    load();
+    load().then((s) => {
+      // The section renders only once loaded, so the browser can't jump to #tokens on its own.
+      if (s && location.hash === '#tokens') requestAnimationFrame(() => document.getElementById('tokens')?.scrollIntoView());
+    });
+    if (new URLSearchParams(location.search).get('tokens')) {
+      setTokensPaid(true);
+      // Card payments land within seconds; PromptPay can take a little longer.
+      let tries = 0;
+      const t = setInterval(() => {
+        load();
+        if (++tries >= 10) clearInterval(t);
+      }, 3000);
+      return () => clearInterval(t);
+    }
     if (new URLSearchParams(location.search).get('paid')) {
       setPaid(true);
       // The webhook usually lands within seconds of the redirect; check a few times.
@@ -98,6 +115,20 @@ export default function MembershipPage() {
     }
   };
 
+  const checkIn = async () => {
+    setBusy('checkin');
+    try {
+      const res = await fetch('/api/tokens/checkin', { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      toast(`เช็คอินแล้ว ได้ ${formatTokens(((await res.json()) as { granted: number }).granted)} โทเคน`);
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'เช็คอินไม่สำเร็จ');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (auth.me?.username && auth.me.needsConsent) {
     return <ConsentScreen username={auth.me.username} email={auth.me.email} phone={auth.me.phone} birthdate={auth.me.birthdate} guardianConsent={auth.me.guardianConsent} onSubmit={auth.consent} onLogout={auth.logout} />;
   }
@@ -115,6 +146,9 @@ export default function MembershipPage() {
 
   const sub = state.subscription?.live ? state.subscription : null;
   const viaStripe = sub?.source === 'stripe';
+  const freePlan = state.plans.find((p) => p.id === FREE_PLAN_ID);
+  const memberCheckin = Math.max(0, ...state.plans.filter((p) => p.price > 0).map((p) => p.features.checkinTokens));
+  const { economy, tokens } = state;
 
   return (
     <div className="membership">
@@ -138,7 +172,7 @@ export default function MembershipPage() {
               {sub.status === 'past_due' && ' (ตัดบัตรไม่ผ่าน อัปเดตบัตรเพื่อใช้ต่อ)'}
             </>
           )}
-          {!state.guest && state.plan.features.dailyMessages > 0 && `, วันนี้คุยไป ${state.usage.chat}/${state.plan.features.dailyMessages} ข้อความ`}
+          {!state.guest && state.plan.features.dailyMessages > 0 && `, วันนี้ใช้ข้อความฟรีไป ${state.usage.chat}/${state.plan.features.dailyMessages} ข้อความ`}
         </p>
         {paid && state.plan.level === 0 && <p className="settings-ok">ชำระเงินสำเร็จ กำลังเปิดใช้แพ็กเกจ รอสักครู่…</p>}
 
@@ -210,6 +244,63 @@ export default function MembershipPage() {
 
         {!state.payments && <p className="help membership-help">ยังไม่เปิดรับชำระเงินออนไลน์ ใช้โค้ดจากแอดมินได้ด้านล่าง</p>}
 
+        <section className="tokens" id="tokens" aria-labelledby="tokens-heading">
+          <div className="tokens-head">
+            <div>
+              <h2 id="tokens-heading" className="section-title">
+                โทเคน
+              </h2>
+              <p className="help">
+                {freePlan && (freePlan.features.dailyMessages || freePlan.features.freePerCharacter)
+                  ? `คุยฟรีได้${freePlan.features.dailyMessages ? ` วันละ ${freePlan.features.dailyMessages} ข้อความ` : ''}${freePlan.features.freePerCharacter ? ` ตัวละครละ ${freePlan.features.freePerCharacter} ข้อความ` : ''} พอข้อความฟรีหมด `
+                  : ''}
+                ส่งต่อได้ข้อความละ {formatTokens(economy.messageCost)} โทเคน หรือปลดล็อกคุยไม่จำกัดกับตัวละครที่ชอบ {formatTokens(economy.unlockPrice)} โทเคน
+                (บางตัวราคาต่างกัน)
+                {memberCheckin > 0 && ` สมาชิกรายเดือนคุยได้ไม่จำกัดต่อวัน และเช็คอินรับ ${formatTokens(memberCheckin)} โทเคนทุกวัน`}
+              </p>
+            </div>
+            {!state.guest && (
+              <div className="tokens-balance">
+                <span className="tokens-amount">
+                  <Coins size={22} weight="fill" aria-hidden />
+                  {formatTokens(tokens.balance)}
+                </span>
+                <span className="help">โทเคนของคุณ</span>
+                {state.plan.features.checkinTokens > 0 &&
+                  (tokens.checkedInToday ? (
+                    <span className="help">วันนี้เช็คอินแล้ว</span>
+                  ) : (
+                    <button className="btn btn-primary" onClick={checkIn} disabled={!!busy}>
+                      <CalendarCheck size={18} aria-hidden />
+                      {busy === 'checkin' ? 'กำลังเช็คอิน…' : `เช็คอินรับ ${formatTokens(state.plan.features.checkinTokens)} โทเคน`}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+          {tokensPaid && <p className="settings-ok">ชำระเงินสำเร็จ โทเคนจะเข้าบัญชีภายในไม่กี่วินาที</p>}
+          {economy.packs.length > 0 && (
+            <ul className="token-packs">
+              {economy.packs.map((p) => (
+                <li key={p.id} className="token-pack">
+                  <p className="token-pack-amount">
+                    <Coins size={20} weight="fill" aria-hidden />
+                    {formatTokens(p.tokens)} <span>โทเคน</span>
+                  </p>
+                  <p className="token-pack-price">{formatPrice(p.price)}</p>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => (state.guest ? setLoginOpen(true) : go('/api/tokens/checkout', { packId: p.id }, `pack-${p.id}`))}
+                    disabled={!!busy || (!state.guest && !state.payments)}
+                  >
+                    {busy === `pack-${p.id}` ? 'กำลังไปหน้าชำระเงิน…' : state.guest ? 'เข้าสู่ระบบเพื่อซื้อ' : 'ซื้อ'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <section className="membership-row">
           <form
             className="code-form"
@@ -247,7 +338,7 @@ export default function MembershipPage() {
         </section>
 
         <p className="help membership-help">
-          แพ็กเกจแบบชำระเงินต่ออายุอัตโนมัติด้วยบัตรเครดิต/เดบิตจนกว่าจะยกเลิก ชำระผ่าน Stripe เราไม่เก็บเลขบัตรของคุณ อ่าน{' '}
+          แพ็กเกจแบบชำระเงินต่ออายุอัตโนมัติด้วยบัตรเครดิต/เดบิตจนกว่าจะยกเลิก แพ็กโทเคนจ่ายครั้งเดียว ไม่ต่ออายุ ชำระผ่าน Stripe เราไม่เก็บเลขบัตรของคุณ อ่าน{' '}
           <Link href="/terms">ข้อกำหนดการใช้งาน</Link>
         </p>
       </main>

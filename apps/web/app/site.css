@@ -1,0 +1,4 @@
+/* Public site only (the admin console shares globals.css but keeps its sizes): every font size is 2px larger. */
+:root {
+  --fs-bump: 2px;
+}

@@ -20,6 +20,8 @@ export async function PUT(req: Request, ctx: RouteContext<'/api/admin/plans/[id]
   const f = (b.features ?? {}) as Partial<PlanFeatures>;
   const features: PlanFeatures = {
     dailyMessages: int(f.dailyMessages, 0, 1_000_000),
+    freePerCharacter: int(f.freePerCharacter, 0, 1_000_000),
+    checkinTokens: int(f.checkinTokens, 0, 1_000_000),
     model: typeof f.model === 'string' ? f.model.trim() : '',
     historyWindow: int(f.historyWindow, 1, 200),
     memoryNotes: int(f.memoryNotes, 0, 200),
