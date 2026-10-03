@@ -29,9 +29,9 @@ services:
       - ADMIN_PROXY_SECRET=${ADMIN_PROXY_SECRET:?set ADMIN_PROXY_SECRET in .env}
       # Server-side pin: the API never uses an AI host sent by a browser.
       - OLLAMA_URL=http://ollama:11434
-      # Model for Ollama when Workers AI isn't set.
+      # Ollama answers first; leave OLLAMA_MODEL empty in .env to send every reply to Workers AI.
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
-      # Set these to chat through Cloudflare Workers AI instead of Ollama.
+      # Workers AI takes the reply when Ollama is down, busy or missing the model.
       - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - CLOUDFLARE_MODEL=${CLOUDFLARE_MODEL:-}
@@ -39,6 +39,10 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - APP_URL=${APP_URL:-}
+    networks:
+      default:
+      # Reaches Ollama (service `ollama` in ~/local-llm) as http://ollama:11434.
+      local-llm:
     volumes:
       # The old SQLite file, kept for the one-off copy into Postgres (scripts/sqlite-to-postgres.mjs).
       # Safe to remove once the copy is verified.
@@ -121,6 +125,12 @@ services:
       - TUNNEL_TOKEN=${CLOUDFLARE_ADMIN_TUNNEL_TOKEN:-}
     depends_on: [admin]
     profiles: [admin-tunnel]
+
+networks:
+  # Created by the local-llm stack (Ollama + Open WebUI); start that first.
+  local-llm:
+    external: true
+    name: local-llm_default
 
 volumes:
   dreamchat-data:

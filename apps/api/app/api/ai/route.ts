@@ -1,5 +1,6 @@
 import { adultBlocker } from '@longrak/shared/age';
-import { OFFLINE_HINT, resolveHost } from '@/lib/host';
+import { resolveHost } from '@/lib/host';
+import { ollamaChat } from '@/lib/ollama';
 import { isAdultUser, requireMember } from '@/lib/auth';
 import { effectivePlan, releaseUsage, reserveUsage } from '@/lib/billing';
 import { type Charge, chargeReply, refundReply } from '@/lib/tokens';
@@ -106,43 +107,31 @@ export async function POST(req: Request) {
     release = () => releaseUsage(user.id, 'other');
   }
 
-  const cf = await workersAi();
-  if (cf) {
-    // The plan picks the model; nothing from the browser does.
-    const res = await workersAiChat(cf, plan.features.model || cf.model, messages, req.signal, maxTokens);
-    if (!res.ok || !res.body) {
-      await release();
-      // The detail (already logged by workersAiChat) can name the account or model; the reader only needs to retry.
-      // 503, not 502: Cloudflare swaps an origin 502 for its own "Bad gateway" page and the message is lost.
-      return bad(res.status === 499 ? 'หยุดแล้ว' : 'AI ไม่ว่างชั่วคราว ลองส่งใหม่อีกครั้ง', res.status === 499 ? 499 : 503);
-    }
-    return new Response(res.body, { headers });
-  }
-
-  // Ollama: the deployed server pins OLLAMA_URL; only `next dev` may use a host and model from the browser.
+  // Ollama (the local GPU) answers first; the deployed server pins OLLAMA_URL, and only `next dev` may use
+  // a host and model from the browser. Workers AI takes the reply when Ollama is down, busy or missing the model.
   const host = resolveHost(body.host);
   const model = process.env.OLLAMA_MODEL?.trim() || (typeof body.model === 'string' ? body.model : '');
-  if (!host || !model) {
+  const cf = await workersAi();
+  if (host && model) {
+    const res = await ollamaChat(host, model, messages, req.signal, maxTokens);
+    if (res.ok && res.body) return new Response(res.body, { headers });
+    if (res.status === 499 || !cf) {
+      await release();
+      return bad(res.status === 499 ? 'หยุดแล้ว' : await res.text(), res.status === 499 ? 499 : 503);
+    }
+  }
+  if (!cf) {
     await release();
     return bad('ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ AI', 503);
   }
-  let res: Response;
-  try {
-    res = await fetch(`${host}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // think: false — thinking models (Qwen 3.6) otherwise spend num_predict on reasoning the reader never sees.
-      body: JSON.stringify({ model, messages, stream: true, think: false, options: { temperature: 0.85, top_p: 0.95, num_predict: maxTokens } }),
-      signal: req.signal,
-    });
-  } catch {
-    await release();
-    return bad(OFFLINE_HINT, 503);
-  }
+
+  // The plan picks the Workers AI model; nothing from the browser does.
+  const res = await workersAiChat(cf, plan.features.model || cf.model, messages, req.signal, maxTokens);
   if (!res.ok || !res.body) {
     await release();
-    const notFound = res.status === 404 ? ` — ไม่พบโมเดล "${model}" ลองรัน ollama pull ${model}` : '';
-    return bad(`Ollama ตอบกลับ HTTP ${res.status}${notFound}`, 503);
+    // The detail (already logged by workersAiChat) can name the account or model; the reader only needs to retry.
+    // 503, not 502: Cloudflare swaps an origin 502 for its own "Bad gateway" page and the message is lost.
+    return bad(res.status === 499 ? 'หยุดแล้ว' : 'AI ไม่ว่างชั่วคราว ลองส่งใหม่อีกครั้ง', res.status === 499 ? 499 : 503);
   }
   return new Response(res.body, { headers });
 }

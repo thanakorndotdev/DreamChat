@@ -1,8 +1,16 @@
 import { requireAdmin } from '@/lib/auth';
+import { resolveHost } from '@/lib/host';
 import type { AdminSettings } from '@longrak/shared/api-types';
 import { SETTING_KEYS, type SettingKey, getSetting, setSetting } from '@/lib/settings';
 import { DEFAULT_CF_MODEL, workersAi, workersAiChat } from '@/lib/workersAi';
 
+
+/** Ollama first when the server pins one (OLLAMA_URL + OLLAMA_MODEL), with Workers AI behind it. */
+function activeBackend(cfModel: string | null): AdminSettings['active'] {
+  const ollamaModel = process.env.OLLAMA_MODEL?.trim();
+  if (resolveHost(undefined) && ollamaModel) return { backend: 'ollama', model: ollamaModel, fallback: cfModel };
+  return cfModel ? { backend: 'workers-ai', model: cfModel, fallback: null } : { backend: null, model: null, fallback: null };
+}
 
 async function snapshot(): Promise<AdminSettings> {
   const cf = await workersAi();
@@ -17,7 +25,7 @@ async function snapshot(): Promise<AdminSettings> {
     cf_api_token_set: apiToken ? 'admin' : process.env.CLOUDFLARE_API_TOKEN?.trim() ? 'env' : null,
     cf_model: model ?? '',
     cf_fallback_model: fallback ?? '',
-    active: cf ? { backend: 'workers-ai', model: cf.model } : { backend: 'ollama', model: null },
+    active: activeBackend(cf?.model ?? null),
     env: {
       cf_account_id: process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? '',
       cf_model: process.env.CLOUDFLARE_MODEL?.trim() ?? '',
@@ -52,7 +60,7 @@ export async function PUT(req: Request) {
   return Response.json(await snapshot());
 }
 
-/** Sends one short message through the current backend so the admin can see the connection works. */
+/** Sends one short message through Workers AI so the admin can see the connection works. */
 export async function POST(req: Request) {
   const me = await requireAdmin();
   if (me instanceof Response) return me;

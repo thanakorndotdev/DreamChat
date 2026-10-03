@@ -67,8 +67,8 @@ export type AdminSettings = {
   cf_api_token_set: 'admin' | 'env' | null;
   cf_model: string;
   cf_fallback_model: string;
-  /** What the server actually uses right now. */
-  active: { backend: 'workers-ai' | 'ollama'; model: string | null };
+  /** What the server actually uses right now; `fallback` is the Workers AI model that takes over when Ollama fails. */
+  active: { backend: 'ollama' | 'workers-ai' | null; model: string | null; fallback: string | null };
   env: { cf_account_id: string; cf_model: string; cf_fallback_model: string; default_model: string };
   stripe: { secretKey: 'live' | 'test' | null; webhook: boolean; appUrl: string };
 };

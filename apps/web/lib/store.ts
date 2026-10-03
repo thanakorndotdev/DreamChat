@@ -243,7 +243,7 @@ export function useCharacters(username: string | null | undefined) {
   return { characters, ready, saveFailed, update, add, remove, legacy, importLegacy, clearLegacy };
 }
 
-/** AI backend status. The host is pinned on the server (OLLAMA_URL / Workers AI), so nothing here is user-configurable. */
+/** AI backend status. The host is pinned on the server (OLLAMA_URL, then Workers AI), so nothing here is user-configurable. */
 export function useOllama() {
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [status, setStatus] = useState<OllamaStatus>('checking');

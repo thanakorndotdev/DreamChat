@@ -1,7 +1,7 @@
 /**
  * Cloudflare Workers AI backend. When CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN
- * are set, the API routes use it instead of Ollama and translate its SSE stream into
- * Ollama's NDJSON shape, so the client code stays the same.
+ * are set, the AI route uses it when Ollama is not configured or fails, and translates its
+ * SSE stream into Ollama's NDJSON shape, so the client code stays the same.
  */
 
 import { getSetting } from './settings';

@@ -71,9 +71,15 @@ export default function SettingsPanel({ toast }: { toast: (text: string) => void
         <div>
           <h1 className="section-title">ตั้งค่า AI</h1>
           <p className="admin-summary">
-            {settings.active.backend === 'workers-ai'
-              ? `ตอนนี้ใช้ Cloudflare Workers AI รุ่น ${settings.active.model}`
-              : 'ตอนนี้ใช้ Ollama เพราะยังตั้งค่า Workers AI ไม่ครบ ใส่ Account ID และ API token เพื่อสลับไปใช้ Workers AI'}
+            {settings.active.backend === 'ollama'
+              ? `ตอนนี้ใช้ Ollama (GPU ของเครื่องเราเอง) รุ่น ${settings.active.model} เป็นหลัก ${
+                  settings.active.fallback
+                    ? `ถ้าล่มหรือไม่ว่างจะสลับไป Cloudflare Workers AI รุ่น ${settings.active.fallback}`
+                    : 'ยังไม่มีตัวสำรอง ใส่ Account ID และ API token เพื่อใช้ Workers AI เป็นตัวสำรอง'
+                }`
+              : settings.active.backend === 'workers-ai'
+                ? `ตอนนี้ใช้ Cloudflare Workers AI รุ่น ${settings.active.model}`
+                : 'ยังไม่ได้ตั้งค่า AI ใส่ Account ID และ API token เพื่อใช้ Workers AI'}
           </p>
         </div>
       </div>
@@ -130,8 +136,8 @@ export default function SettingsPanel({ toast }: { toast: (text: string) => void
           <button className="btn btn-primary" onClick={() => save()} disabled={busy}>
             {busy ? 'กำลังบันทึก…' : 'บันทึก'}
           </button>
-          <button className="btn btn-ghost" onClick={runTest} disabled={test.busy || settings.active.backend !== 'workers-ai'}>
-            {test.busy ? 'กำลังทดสอบ…' : 'ทดสอบการเชื่อมต่อ'}
+          <button className="btn btn-ghost" onClick={runTest} disabled={test.busy || (settings.active.backend !== 'workers-ai' && !settings.active.fallback)}>
+            {test.busy ? 'กำลังทดสอบ…' : 'ทดสอบ Workers AI'}
           </button>
         </div>
         {test.result && <p className="settings-ok">{test.result}</p>}
