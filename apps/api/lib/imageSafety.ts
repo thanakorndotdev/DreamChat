@@ -6,7 +6,7 @@
 
 /** Plurals and endings count too: teen(s|ager), little girl(s), nud(e|es|ity), loli(con). */
 const MINOR_WORDS =
-  /\b(child(ren|ish|like)?|kids?|kiddos?|minors?|under-?age(d)?|teen(s|age|aged|ager|agers)?|pre-?teens?|tweens?|lol(i|is|ita|itas|icon)|shota(con)?|toddlers?|bab(y|ies)|infants?|(little|young|small) (girl|boy)s?|school ?(child|children|kid|kids|girl|girls|boy|boys)|(high|middle|elementary|primary|junior high) ?school(er|ers)?|grade ?school(er|ers)?|jailbait|chibi)\b/;
+  /\b(child(ren|ish|like)?|kids?|kiddos?|minors?|under-?age(d)?|teen(s|age|aged|ager|agers)?|pre-?teens?|tweens?|lol(i|is|ita|itas|icon)|shota(con)?|toddlers?|bab(y|ies)|infants?|(little|young|small) (girl|boy)s?|school ?(child|children|kid|kids|girl|girls|boy|boys)|(high|middle|elementary|primary|junior high) ?school(er|ers)?|grade ?school(er|ers)?|elementary|junior high|jailbait|chibi)\b/;
 const EXPLICIT_WORDS =
   /\b(nud(e|es|ity|ist)|naked|nsfw|top-?less|bottom-?less|nipples?|areolas?|genital(s|ia)?|penis|vagina|pussy|boobs?|tits?|breasts? out|sex(ual|ually|y time)?|porn(o|ographic)?|explicit|hentai|lewd|erotic|undress(ed|ing)?|unclothed|strip(ping|per)?)\b/;
 const THAI_WORDS = /(เด็ก|ประถม|มัธยม|นักเรียน|ผู้เยาว์|ขวบ|วัยรุ่น|เปลือย|โป๊|ลามก|ไม่ใส่เสื้อผ้า|ถอดเสื้อผ้า|อนาจาร|หัวนม|อวัยวะเพศ)/;
