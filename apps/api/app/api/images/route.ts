@@ -1,6 +1,7 @@
 import { requireMember } from '@/lib/auth';
 import { effectivePlan, releaseUsage, reserveUsage, usageToday } from '@/lib/billing';
 import { comfyImage } from '@/lib/comfyui';
+import { unsafeImagePrompt } from '@/lib/imageSafety';
 import { allow } from '@/lib/rateLimit';
 
 /**
@@ -13,13 +14,6 @@ import { allow } from '@/lib/rateLimit';
  */
 
 const MAX_PROMPT = 600;
-
-/** Character pictures are covers anyone may see: never a minor, never explicit, whatever the account's age. */
-const BLOCKED = [
-  /\b(child|children|kid|kids|minor|underage|under-age|teen|teenager|teenage|preteen|loli|lolita|shota|toddler|baby|infant|little (girl|boy)|young (girl|boy)|schoolchild|schoolgirl|schoolboy|high school|middle school|junior high|elementary)\b/i,
-  /\b(nude|naked|nsfw|topless|bottomless|nipples?|genitals?|penis|vagina|sex|sexual|porn|explicit|hentai|lewd)\b/i,
-  /(เด็ก|ประถม|มัธยม|นักเรียน|ผู้เยาว์|เปลือย|โป๊|ลามก|ไม่ใส่เสื้อผ้า)/,
-];
 
 function buildPrompt(description: string) {
   return [
@@ -41,7 +35,7 @@ export async function POST(req: Request) {
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
   if (!prompt) return bad('พิมพ์คำบรรยายภาพก่อน');
   if (prompt.length > MAX_PROMPT) return bad(`คำบรรยายยาวเกิน ${MAX_PROMPT} ตัวอักษร`);
-  if (BLOCKED.some((re) => re.test(prompt))) return bad('วาดภาพนี้ไม่ได้ ตัวละครในรูปต้องเป็นผู้ใหญ่และแต่งกายเหมาะสม ลองเปลี่ยนคำบรรยาย');
+  if (unsafeImagePrompt(prompt)) return bad('วาดภาพนี้ไม่ได้ ตัวละครในรูปต้องเป็นผู้ใหญ่และแต่งกายเหมาะสม ลองเปลี่ยนคำบรรยาย');
 
   const plan = await effectivePlan(user.id);
   const perDay = plan.features.dailyImages ?? 0;
