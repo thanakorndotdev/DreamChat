@@ -21,6 +21,7 @@ export default function UsersPanel({ toast }: Props) {
   }, []);
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [query, setQuery] = useState('');
+  const [news, setNews] = useState<'all' | 'yes' | 'no'>('all');
   const [editing, setEditing] = useState<AdminUser | 'new' | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
 
@@ -44,8 +45,11 @@ export default function UsersPanel({ toast }: Props) {
   };
 
   const q = query.trim().toLowerCase();
-  const shown = (users ?? []).filter((u) => !q || [u.username, u.email, u.phone].some((s) => s?.toLowerCase().includes(q)));
+  const shown = (users ?? []).filter(
+    (u) => (!q || [u.username, u.email, u.phone].some((s) => s?.toLowerCase().includes(q))) && (news === 'all' || u.marketing === (news === 'yes')),
+  );
   const members = (users ?? []).filter((u) => u.plan).length;
+  const subscribers = (users ?? []).filter((u) => u.marketing).length;
 
   return (
     <section className="admin-panel">
@@ -54,12 +58,17 @@ export default function UsersPanel({ toast }: Props) {
           <h1 className="section-title">ผู้ใช้</h1>
           {users && (
             <p className="admin-summary">
-              {users.length} บัญชี, สมาชิกแบบมีแพ็กเกจ {members} คน แชทของผู้ใช้เป็นความลับ หน้านี้ไม่แสดงเนื้อหาแชท
+              {users.length} บัญชี, สมาชิกแบบมีแพ็กเกจ {members} คน, รับข่าวสาร {subscribers} คน แชทของผู้ใช้เป็นความลับ หน้านี้ไม่แสดงเนื้อหาแชท
             </p>
           )}
         </div>
         <div className="admin-head-tools">
           <input className="admin-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาชื่อ อีเมล หรือเบอร์" aria-label="ค้นหาผู้ใช้" />
+          <select className="admin-select" value={news} onChange={(e) => setNews(e.target.value as typeof news)} aria-label="กรองตามการรับข่าวสาร">
+            <option value="all">ทุกคน</option>
+            <option value="yes">รับข่าวสาร</option>
+            <option value="no">ไม่รับข่าวสาร</option>
+          </select>
           <button className="btn btn-primary" onClick={() => setEditing('new')}>
             <Plus size={18} weight="bold" />
             <span>เพิ่มผู้ใช้</span>
@@ -70,7 +79,7 @@ export default function UsersPanel({ toast }: Props) {
       {users === null ? (
         <p className="admin-loading">กำลังโหลด…</p>
       ) : shown.length === 0 ? (
-        <p className="admin-loading">ไม่พบบัญชีที่ตรงกับ “{query.trim()}”</p>
+        <p className="admin-loading">{q ? `ไม่พบบัญชีที่ตรงกับ “${query.trim()}”` : 'ไม่มีบัญชีในกลุ่มนี้'}</p>
       ) : (
         <table className="admin-table">
           <thead>
@@ -83,6 +92,7 @@ export default function UsersPanel({ toast }: Props) {
               <th>เรื่อง</th>
               <th>โทเคน</th>
               <th>PDPA</th>
+              <th>ข่าวสาร</th>
               <th>สมัครเมื่อ</th>
               <th aria-label="จัดการ" />
             </tr>
@@ -113,7 +123,8 @@ export default function UsersPanel({ toast }: Props) {
                 <td data-label="สิทธิ์">{u.isAdmin ? <span className="admin-badge">แอดมิน</span> : 'ผู้ใช้'}</td>
                 <td data-label="เรื่อง">{u.characters}</td>
                 <td data-label="โทเคน">{u.tokens.toLocaleString('th-TH')}</td>
-                <td data-label="PDPA">{u.consented ? (u.marketing ? 'ยอมรับ + รับข่าวสาร' : 'ยอมรับ') : 'ยังไม่ยอมรับ'}</td>
+                <td data-label="PDPA">{u.consented ? 'ยอมรับ' : 'ยังไม่ยอมรับ'}</td>
+                <td data-label="ข่าวสาร">{u.marketing ? <span className="admin-badge">รับข่าวสาร</span> : 'ไม่รับ'}</td>
                 <td data-label="สมัครเมื่อ">{formatDate(u.createdAt)}</td>
                 <td className="admin-actions">
                   {confirmId === u.id ? (
