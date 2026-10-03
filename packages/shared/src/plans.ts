@@ -1,7 +1,11 @@
 /** What a plan allows. The server enforces these; the client only uses them to show limits. */
 export type PlanFeatures = {
-  /** Chat replies per day; 0 = unlimited. */
+  /** Free chat replies per day; 0 = no daily cap. Past it, a reply costs tokens. */
   dailyMessages: number;
+  /** Free replies with each character, ever; 0 = no cap. Past it, a reply costs tokens until the character is unlocked. */
+  freePerCharacter: number;
+  /** Tokens for checking in once a day; 0 = no check-in. */
+  checkinTokens: number;
   /** Workers AI model for this plan; empty = the model set on the AI settings page. */
   model: string;
   /** Recent messages the AI sees on each reply (short-term memory). */
@@ -34,18 +38,19 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     level: 0,
     price: 0,
     interval: 'month',
-    features: { dailyMessages: 30, model: '', historyWindow: 8, memoryNotes: 3, maxCharacters: 2 },
+    features: { dailyMessages: 15, freePerCharacter: 20, checkinTokens: 0, model: '', historyWindow: 8, memoryNotes: 3, maxCharacters: 2 },
     perks: ['ลองคุยกับตัวละครได้ทุกวัน', 'จำบทสนทนาล่าสุดได้ช่วงสั้นๆ', 'สร้างตัวละครเองได้ 2 ตัว'],
   },
   {
     id: 'plus',
     name: 'Rakkao Plus',
     level: 1,
-    price: 79_900,
-    interval: 'year',
-    features: { dailyMessages: 300, model: '', historyWindow: 16, memoryNotes: 15, maxCharacters: 15 },
+    price: 9_900,
+    interval: 'month',
+    features: { dailyMessages: 0, freePerCharacter: 20, checkinTokens: 100, model: '', historyWindow: 16, memoryNotes: 15, maxCharacters: 15 },
     perks: [
-      'ข้อความต่อวันเยอะกว่า Free มาก',
+      'คุยได้ไม่จำกัดจำนวนต่อวัน',
+      'เช็คอินรับ 100 โทเคนทุกวัน ไว้ปลดล็อกตัวละครที่ชอบ',
       'โมเดล AI คุณภาพสูงขึ้น',
       'ตัวละครจำเรื่องสำคัญของเราได้นานขึ้น',
       'บริบทบทสนทนายาวขึ้น คุยต่อเรื่องเดิมได้ลื่นขึ้น',
@@ -58,11 +63,12 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     id: 'pro',
     name: 'Rakkao Pro',
     level: 2,
-    price: 99_900,
-    interval: 'year',
-    features: { dailyMessages: 0, model: '', historyWindow: 30, memoryNotes: 40, maxCharacters: 0 },
+    price: 19_900,
+    interval: 'month',
+    features: { dailyMessages: 0, freePerCharacter: 20, checkinTokens: 100, model: '', historyWindow: 30, memoryNotes: 40, maxCharacters: 0 },
     perks: [
-      'คุยได้แทบไม่จำกัด',
+      'คุยได้ไม่จำกัดจำนวนต่อวัน',
+      'เช็คอินรับ 100 โทเคนทุกวัน ไว้ปลดล็อกตัวละครที่ชอบ',
       'โมเดล AI ระดับพรีเมียม',
       'ความจำระยะยาวแบบละเอียด จำความสัมพันธ์และเหตุการณ์สำคัญ',
       'บริบทบทสนทนายาวกว่า Plus',

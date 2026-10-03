@@ -32,6 +32,8 @@ export async function PUT(req: Request, ctx: RouteContext<'/api/characters/[id]'
   const sql = await db();
   const [exists] = await sql`SELECT 1 FROM characters WHERE user_id = ${user.id} AND id = ${id}`;
   if (!exists) {
+    // Catalog chats are made only by /api/catalog/[id]/start; their id ties them to that character's free replies and unlock.
+    if (id.startsWith('cat-')) return new Response('ข้อมูลตัวละครไม่ถูกต้อง', { status: 400 });
     const { name, features } = await effectivePlan(user.id);
     const [{ n: count }] = await sql<{ n: number }[]>`SELECT count(*) AS n FROM characters WHERE user_id = ${user.id}`;
     if (features.maxCharacters && count >= features.maxCharacters) {

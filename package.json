@@ -13,7 +13,8 @@
     "make-admin": "node packages/db/scripts/make-admin.mjs",
     "docker:up": "docker compose --project-directory . -f docker/docker-compose.yml --profile tunnel up -d --build",
     "docker:down": "docker compose --project-directory . -f docker/docker-compose.yml --profile tunnel down",
-    "docker:logs": "docker compose --project-directory . -f docker/docker-compose.yml logs -f --tail=100"
+    "docker:logs": "docker compose --project-directory . -f docker/docker-compose.yml logs -f --tail=100",
+    "admin:tunnel": "sh scripts/start-admin-tunnel.sh"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

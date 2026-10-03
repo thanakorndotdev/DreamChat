@@ -1,6 +1,6 @@
 # Run from the repository root, so the root .env is used:
 #   docker compose --project-directory . -f docker/docker-compose.yml up -d --build
-#   (add --profile tunnel to also start the Cloudflare tunnel)
+#   (add --profile tunnel to also start the public Cloudflare tunnel)
 name: dreamchat
 
 x-app-build: &app-build
@@ -53,6 +53,10 @@ services:
       - LEGAL_CONTACT_EMAIL=${LEGAL_CONTACT_EMAIL:-}
     ports:
       - "100.84.226.15:3200:3000"  # tailnet only, for testing without the tunnel
+    networks:
+      default:
+        # Existing Cloudflare tunnel routes still target http://app:3000.
+        aliases: [app]
 
   # The admin console, on its own hostname (put it behind Cloudflare Access).
   admin:
@@ -95,8 +99,23 @@ services:
       - 8.8.8.8
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
-    depends_on: [web, admin]
+    depends_on: [web]
     profiles: [tunnel]
+
+  # A separate tunnel keeps the admin hostname and token independent from the public site.
+  # In Cloudflare, route admin.longrakchat.com to http://admin:3000 and protect it with Access.
+  admin-cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: dreamchat-admin-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_ADMIN_TUNNEL_TOKEN:-}
+    depends_on: [admin]
+    profiles: [admin-tunnel]
 
 volumes:
   dreamchat-data:

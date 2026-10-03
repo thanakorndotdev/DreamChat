@@ -74,9 +74,13 @@ export default function CreateWizard({ host, model, onClose, onCreate, userAdult
 
   const randomBot = () => {
     const preset = (last.current.bot = pickNew(BOT_PRESETS, last.current.bot));
-    const { imagePrompt: p, ...rest } = preset;
+    // The preset's catalog id and "you are" role aren't part of the character being made; its face is a starting picture.
+    const { imagePrompt: p, id: _id, userRole: _role, avatar: face, ...rest } = preset;
     setForm((f) => ({ ...f, ...rest }));
     setImagePrompt(p);
+    imageJob.current++;
+    setAvatar(face);
+    setImageState({ busy: false });
     setError(null);
   };
 

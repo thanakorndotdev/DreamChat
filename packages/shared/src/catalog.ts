@@ -5,10 +5,13 @@ export type CharacterSheet = Pick<Character, 'name' | 'role' | 'gender' | 'age' 
 
 export const SHEET_KEYS = ['name', 'role', 'gender', 'age', 'job', 'avatar', 'personality', 'firstMessage', 'userRole', 'adult'] as const;
 
-/** Shown to every visitor, so only an embedded image or an https URL (no javascript:, no plain-http mixed content). */
+/**
+ * Shown to every visitor, so only an embedded image, an https URL (no javascript:, no plain-http mixed content)
+ * or one of the bundled faces in apps/web/public/characters.
+ */
 function safeImage(v: unknown): string {
   const s = typeof v === 'string' ? v.trim() : '';
-  return /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(s) || /^https:\/\//i.test(s) ? s : '';
+  return /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(s) || /^https:\/\//i.test(s) || /^\/characters\/[a-z0-9-]+\.(jpg|webp)$/.test(s) ? s : '';
 }
 
 export function toSheet(c: Partial<Character>): CharacterSheet {
@@ -32,6 +35,8 @@ export type CatalogEntry = {
   id: string;
   sheet: CharacterSheet;
   tier: number;
+  /** Tokens to unlock unlimited chat; null = the default price. */
+  unlockPrice: number | null;
   status: CatalogStatus;
   reviewNote: string;
   author: string | null;

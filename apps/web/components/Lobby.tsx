@@ -1,13 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BookOpen, Bug, ChatCircle, Crown, LockSimple, MagnifyingGlass, Megaphone, Plus, Trash, UserCircle } from '@phosphor-icons/react';
+import { BookOpen, Bug, CalendarCheck, ChatCircle, Coins, Crown, LockSimple, MagnifyingGlass, Megaphone, Plus, Trash, UserCircle } from '@phosphor-icons/react';
 import Link from 'next/link';
 import RoleplayText from './RoleplayText';
 import { STATUS_LABEL } from '@longrak/shared/catalog';
 import { type Plan, TIER_LABEL } from '@longrak/shared/plans';
+import { formatTokens } from '@longrak/shared/tokens';
 import type { CatalogCard, Submission } from '@/lib/store';
 import type { Character } from '@longrak/shared/types';
+import SiteFooter from './SiteFooter';
 
 type Props = {
   characters: Character[];
@@ -19,6 +21,9 @@ type Props = {
   catalog: CatalogCard[];
   submissions: Submission[];
   plan: Plan | null;
+  /** Token balance and whether today's check-in is done; null until billing loads. */
+  tokens: { balance: number; checkedInToday: boolean } | null;
+  onCheckIn: () => void;
   onOpen: (id: string) => void;
   /** Starts (or continues) a chat with a catalog character. */
   onStart: (catalogId: string) => void;
@@ -85,6 +90,8 @@ export default function Lobby({
   catalog,
   submissions,
   plan,
+  tokens,
+  onCheckIn,
   onOpen,
   onStart,
   onSubmitForPublish,
@@ -137,9 +144,9 @@ export default function Lobby({
 
   return (
     <div className="lobby">
-      <header className="topbar">
+      <header className="topbar" data-signed-in={guest ? undefined : ''}>
         <div className="brand">
-          <span className="brand-mark">หลงรักแชท</span>
+          <Link className="brand-mark" href="/">หลงรักแชท</Link>
         </div>
         {(!empty || catalog.length > 0) && (
           <label className="search">
@@ -156,11 +163,12 @@ export default function Lobby({
         <div className="topbar-actions">
           {guest ? (
             <>
-              <Link className="btn btn-ghost" href="/membership">
-                แพ็กเกจ
+              <Link className="btn btn-ghost btn-collapse" href="/membership" aria-label="แพ็กเกจ">
+                <Crown size={17} aria-hidden />
+                <span>แพ็กเกจ</span>
               </Link>
               <button className="btn btn-primary" onClick={onLogin}>
-                เข้าสู่ระบบ / สมัคร
+                เข้าสู่ระบบ<span className="wide-only"> / สมัคร</span>
               </button>
             </>
           ) : (
@@ -169,10 +177,27 @@ export default function Lobby({
             {level > 0 && <Crown size={14} weight="fill" aria-hidden />}
             {plan?.name ?? 'Free'}
           </Link>
+          {tokens && (
+            <Link className="token-chip" href="/membership#tokens" title="โทเคนของคุณ" aria-label={`มี ${formatTokens(tokens.balance)} โทเคน`}>
+              <Coins size={15} weight="fill" aria-hidden />
+              {formatTokens(tokens.balance)}
+            </Link>
+          )}
+          {tokens && !!plan?.features.checkinTokens && !tokens.checkedInToday && (
+            <button
+              className="btn btn-soft btn-collapse checkin-btn"
+              onClick={onCheckIn}
+              title={`เช็คอินวันนี้รับ ${plan.features.checkinTokens} โทเคน`}
+              aria-label={`เช็คอินวันนี้รับ ${plan.features.checkinTokens} โทเคน`}
+            >
+              <CalendarCheck size={17} aria-hidden />
+              <span>เช็คอิน +{formatTokens(plan.features.checkinTokens)}</span>
+            </button>
+          )}
           <button className="icon-btn" onClick={onReport} aria-label="แจ้งปัญหา" title="แจ้งปัญหา">
             <Bug size={19} />
           </button>
-          <button className="btn btn-primary" onClick={onCreate}>
+          <button className="btn btn-primary btn-collapse" onClick={onCreate} aria-label="สร้างตัวละคร">
             <Plus size={18} weight="bold" />
             <span>สร้างตัวละคร</span>
           </button>
@@ -480,6 +505,7 @@ export default function Lobby({
           </div>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

@@ -8,19 +8,22 @@ import PlansPanel from '@/components/PlansPanel';
 import ReportsPanel from '@/components/ReportsPanel';
 import SecurityPanel from '@/components/SecurityPanel';
 import SettingsPanel from '@/components/SettingsPanel';
+import TokensPanel from '@/components/TokensPanel';
 import UsersPanel from '@/components/UsersPanel';
+import Copyright from '@longrak/shared/components/Copyright';
 import { useToast } from '@longrak/shared/components/Toast';
 
 /** The public site, for the back arrow; optional. */
-const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL;
+const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://longrakchat.com';
 
-type Tab = 'users' | 'catalog' | 'reports' | 'plans' | 'coupons' | 'security' | 'settings';
+type Tab = 'users' | 'catalog' | 'reports' | 'plans' | 'tokens' | 'coupons' | 'security' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'users', label: 'ผู้ใช้' },
   { id: 'catalog', label: 'คลังตัวละคร' },
   { id: 'reports', label: 'แจ้งปัญหา' },
   { id: 'plans', label: 'แพ็กเกจ' },
+  { id: 'tokens', label: 'โทเคน' },
   { id: 'coupons', label: 'โค้ดส่วนลด' },
   { id: 'security', label: 'ความปลอดภัย' },
   { id: 'settings', label: 'ตั้งค่าระบบ' },
@@ -86,10 +89,14 @@ export default function AdminPage() {
         {tab === 'catalog' && <CatalogPanel toast={toast} />}
         {tab === 'reports' && <ReportsPanel toast={toast} />}
         {tab === 'plans' && <PlansPanel toast={toast} />}
+        {tab === 'tokens' && <TokensPanel toast={toast} />}
         {tab === 'coupons' && <CouponsPanel toast={toast} />}
         {tab === 'security' && <SecurityPanel toast={toast} />}
         {tab === 'settings' && <SettingsPanel toast={toast} />}
       </main>
+      <footer className="site-footer">
+        <Copyright />
+      </footer>
       <Toast />
     </div>
   );

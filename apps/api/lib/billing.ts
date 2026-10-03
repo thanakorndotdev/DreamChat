@@ -3,6 +3,7 @@ import type { Coupon, Subscription } from '@longrak/shared/api-types';
 
 export type { Coupon, Subscription };
 import { FREE_PLAN_ID, type Plan, type PlanFeatures } from '@longrak/shared/plans';
+import { stripe } from '@/lib/stripe';
 
 type PlanRow = { id: string; name: string; level: number; price: number; interval: string; active: boolean; features: PlanFeatures; perks: string[] };
 
@@ -106,6 +107,25 @@ export async function releaseUsage(userId: number, kind: 'chat' | 'other') {
   const sql = await db();
   if (kind === 'chat') await sql`UPDATE usage SET chat = greatest(chat - 1, 0) WHERE user_id = ${userId} AND day = ${today()}`;
   else await sql`UPDATE usage SET other = greatest(other - 1, 0) WHERE user_id = ${userId} AND day = ${today()}`;
+}
+
+/** The account's Stripe customer, created on first checkout. */
+export async function customerFor(user: { id: number; username: string; email: string | null; phone: string | null }) {
+  const sql = await db();
+  const [row] = await sql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM users WHERE id = ${user.id}`;
+  if (row.stripe_customer_id) {
+    // A customer made with test keys doesn't exist once live keys are in, and vice versa.
+    const found = await stripe<{ deleted?: boolean }>('GET', `customers/${row.stripe_customer_id}`).catch(() => null);
+    if (found && !found.deleted) return row.stripe_customer_id;
+  }
+  const customer = await stripe<{ id: string }>('POST', 'customers', {
+    email: user.email ?? undefined,
+    phone: user.phone ?? undefined,
+    name: user.username,
+    metadata: { userId: user.id },
+  });
+  await sql`UPDATE users SET stripe_customer_id = ${customer.id} WHERE id = ${user.id}`;
+  return customer.id;
 }
 
 // ---------- coupons ----------

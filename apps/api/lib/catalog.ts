@@ -5,6 +5,7 @@ type Row = {
   id: string;
   data: CharacterSheet;
   tier: number;
+  unlock_price: number | null;
   status: CatalogStatus;
   review_note: string;
   author: string | null;
@@ -13,11 +14,15 @@ type Row = {
   published_at: number | null;
 };
 
+/** An unlock price from the admin; empty or missing means the default price. */
+export const parsePrice = (v: unknown) => (v === null || v === '' || v === undefined ? null : Math.max(0, Math.min(10_000_000, Math.floor(Number(v) || 0))));
+
 function toEntry(r: Row): CatalogEntry {
   return {
     id: r.id,
     sheet: r.data,
     tier: r.tier,
+    unlockPrice: r.unlock_price,
     status: r.status,
     reviewNote: r.review_note,
     author: r.author,
@@ -31,7 +36,7 @@ function toEntry(r: Row): CatalogEntry {
 export async function listCatalog(filter: { status?: CatalogStatus; authorId?: number } = {}): Promise<CatalogEntry[]> {
   const sql = await db();
   const rows = await sql<Row[]>`
-    SELECT c.id, c.data, c.tier, c.status, c.review_note, c.source_id, c.updated_at, c.published_at, u.username AS author
+    SELECT c.id, c.data, c.tier, c.unlock_price, c.status, c.review_note, c.source_id, c.updated_at, c.published_at, u.username AS author
     FROM catalog c LEFT JOIN users u ON u.id = c.author_id
     WHERE true
       ${filter.status ? sql`AND c.status = ${filter.status}` : sql``}
@@ -43,7 +48,7 @@ export async function listCatalog(filter: { status?: CatalogStatus; authorId?: n
 export async function getEntry(id: string): Promise<CatalogEntry | null> {
   const sql = await db();
   const [r] = await sql<Row[]>`
-    SELECT c.id, c.data, c.tier, c.status, c.review_note, c.source_id, c.updated_at, c.published_at, u.username AS author
+    SELECT c.id, c.data, c.tier, c.unlock_price, c.status, c.review_note, c.source_id, c.updated_at, c.published_at, u.username AS author
     FROM catalog c LEFT JOIN users u ON u.id = c.author_id
     WHERE c.id = ${id}`;
   return r ? toEntry(r) : null;

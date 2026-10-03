@@ -3,6 +3,7 @@
  * (apps/web, apps/admin) so neither side drifts.
  */
 import type { Plan } from './plans';
+import type { Economy } from './tokens';
 
 export type Subscription = {
   planId: string;
@@ -32,7 +33,10 @@ export type BillingState = {
   plans: Plan[];
   plan: Plan;
   subscription: (Subscription & { live: boolean }) | null;
+  /** Free replies used today. */
   usage: { chat: number };
+  tokens: { balance: number; checkedInToday: boolean };
+  economy: Economy;
   payments: boolean;
   /** Not signed in: only the plans are real; everything else is the free plan's defaults. */
   guest: boolean;
@@ -53,6 +57,7 @@ export type AdminUser = {
   /** How many chats they keep; the chats themselves are private and never sent here. */
   characters: number;
   sessions: number;
+  tokens: number;
   plan: { id: string; name: string; source: string; until: number; status: string; cancelAtPeriodEnd: boolean } | null;
 };
 

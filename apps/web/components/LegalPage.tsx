@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import SiteFooter from './SiteFooter';
 
 /**
  * Who runs the service, from env so the published pages name the real operator. Read per request
@@ -24,6 +25,7 @@ export default function LegalPage({ title, updated, children }: { title: string;
         <p className="legal-updated">ปรับปรุงล่าสุด {updated}</p>
         {children}
       </main>
+      <SiteFooter />
     </div>
   );
 }

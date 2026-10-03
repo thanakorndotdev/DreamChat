@@ -1,5 +1,6 @@
 import postgres from 'postgres';
-import { DEFAULT_CHARACTERS } from '@longrak/shared/presets';
+import { BOT_PRESETS } from '@longrak/shared/presets';
+import { toSheet } from '@longrak/shared/catalog';
 import { DEFAULT_PLANS } from '@longrak/shared/plans';
 
 /**
@@ -8,12 +9,14 @@ import { DEFAULT_PLANS } from '@longrak/shared/plans';
  */
 
 export type Sql = postgres.Sql<{ bigint: number }>;
+/** A schema change: SQL, or a step that needs code (e.g. to insert bundled data). Runs once, in order. */
+type Migration = string | ((tx: postgres.TransactionSql<{ bigint: number }>) => Promise<void>);
 
 /**
  * Applied in order, once each; the index is the version. Never edit a shipped entry, append a new one.
  * Times are milliseconds since epoch (bigint, read back as numbers) to match the app's Date.now().
  */
-const MIGRATIONS: string[] = [
+const MIGRATIONS: Migration[] = [
   `
   CREATE EXTENSION IF NOT EXISTS citext;
 
@@ -188,7 +191,8 @@ async function migrate(sql: Sql) {
     const done = new Set((await tx<{ version: number }[]>`SELECT version FROM schema_migrations`).map((r) => r.version));
     for (const [version, script] of MIGRATIONS.entries()) {
       if (done.has(version)) continue;
-      await tx.unsafe(script);
+      if (typeof script === 'string') await tx.unsafe(script);
+      else await script(tx);
       await tx`INSERT INTO schema_migrations ${tx({ version, applied_at: Date.now() })}`;
     }
 
@@ -197,18 +201,6 @@ async function migrate(sql: Sql) {
         INSERT INTO plans (id, name, level, price, interval, features, perks)
         VALUES (${p.id}, ${p.name}, ${p.level}, ${p.price}, ${p.interval}, ${tx.json(p.features)}, ${tx.json(p.perks)})
         ON CONFLICT (id) DO NOTHING`;
-    }
-
-    // A fresh install starts with the bundled sample character in the catalog.
-    const [{ n }] = await tx<{ n: number }[]>`SELECT count(*) AS n FROM catalog`;
-    if (!n) {
-      const now = Date.now();
-      for (const c of DEFAULT_CHARACTERS) {
-        const { messages: _m, notes: _n, notedUpTo: _u, updatedAt: _t, userName: _p, ...sheet } = c;
-        await tx`
-          INSERT INTO catalog (id, data, status, created_at, updated_at, published_at)
-          VALUES (${c.id}, ${tx.json(sheet)}, 'published', ${now}, ${now}, ${now})`;
-      }
     }
   });
 }

@@ -2,6 +2,7 @@ import { getPlan, recordRedemption, setSubscription } from '@/lib/billing';
 import { db } from '@longrak/db';
 import { cancelPromptPay, grantPromptPay } from '@/lib/promptpay';
 import { type StripeSubscription, periodEnd, stripe, verifyWebhook } from '@/lib/stripe';
+import { creditPurchase } from '@/lib/tokens';
 
 type Event = { id: string; type: string; data: { object: Record<string, unknown> } };
 
@@ -10,6 +11,19 @@ async function userFor(sub: StripeSubscription): Promise<number | null> {
   const sql = await db();
   const [row] = await sql<{ id: number }[]>`SELECT id FROM users WHERE stripe_customer_id = ${sub.customer}`;
   return row?.id ?? null;
+}
+
+/** A token pack is credited once the money is in: right away for cards, later for PromptPay and other delayed methods. */
+async function applyTokenPurchase(session: Record<string, unknown>) {
+  const meta = (session.metadata ?? {}) as Record<string, string>;
+  if (meta.kind !== 'tokens' || session.payment_status !== 'paid') return;
+  const userId = Number(meta.userId);
+  const tokens = Number(meta.tokens);
+  if (!userId || !(tokens > 0)) {
+    console.error(`[stripe] token checkout ${String(session.id)}: bad metadata`);
+    return;
+  }
+  await creditPurchase(userId, tokens, String(session.id));
 }
 
 async function applySubscription(sub: StripeSubscription) {
@@ -48,8 +62,12 @@ export async function POST(req: Request) {
         if (typeof obj.subscription === 'string') await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${obj.subscription}`));
         // A code counts as used once the payment went through, not when someone only opened checkout.
         if (meta.code && meta.userId) await recordRedemption(meta.code, Number(meta.userId));
+        await applyTokenPurchase(obj);
         break;
       }
+      case 'checkout.session.async_payment_succeeded':
+        await applyTokenPurchase(obj);
+        break;
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':

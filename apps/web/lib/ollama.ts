@@ -1,3 +1,4 @@
+import type { Paywall } from '@longrak/shared/tokens';
 import type { Message } from '@longrak/shared/types';
 
 /**
@@ -9,12 +10,19 @@ import type { Message } from '@longrak/shared/types';
 export const HISTORY_WINDOW = 10;
 
 export type AiTask =
-  | { task: 'reply'; characterId: string; history: Pick<Message, 'sender' | 'text'>[]; rude: boolean }
+  | { task: 'reply'; characterId: string; history: Pick<Message, 'sender' | 'text'>[]; rude: boolean; payWithTokens: boolean }
   | { task: 'note'; characterId: string }
   | { task: 'draft'; outline: string; adult: boolean };
 
 /** The plan's limit was hit (daily messages, characters, premium); the message says which. */
 export class LimitError extends Error {}
+
+/** The free replies ran out: the reply needs tokens (agreed to, and enough of them) or an unlock. */
+export class PaywallError extends LimitError {
+  constructor(readonly paywall: Paywall) {
+    super(paywall.message);
+  }
+}
 
 /** Streams the AI's answer; calls onText with the text so far. */
 export async function streamAi(
@@ -28,6 +36,9 @@ export async function streamAi(
     body: JSON.stringify(body),
     signal,
   });
+  if (res.status === 402 && res.headers.get('content-type')?.includes('application/json')) {
+    throw new PaywallError((await res.json()) as Paywall);
+  }
   if (!res.ok || !res.body) {
     const text = (await res.text()) || `HTTP ${res.status}`;
     throw res.status === 429 || res.status === 402 ? new LimitError(text) : new Error(text);
