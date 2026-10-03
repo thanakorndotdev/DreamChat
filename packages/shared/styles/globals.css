@@ -2707,6 +2707,77 @@ a.btn-primary {
 
 /* ---------- admin additions ---------- */
 
+/* Users > ดูแชท: the chat list, then one chat read-only in the web app's bubbles. */
+.admin-chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.admin-chat-list button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition: border-color 0.15s;
+}
+.admin-chat-list button:hover {
+  border-color: var(--accent);
+}
+.admin-chat-last {
+  font-size: calc(13px + var(--fs-bump));
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-chat-log {
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.admin-chat-log .msg {
+  max-width: 85%;
+}
+.admin-evidence-note {
+  flex: 1;
+  min-width: 0;
+}
+
+/* นโยบาย tab: the text on the left, the page as readers will see it on the right. */
+.admin-legal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.admin-legal textarea {
+  font-family: ui-monospace, monospace;
+  font-size: calc(13px + var(--fs-bump));
+  line-height: 1.6;
+}
+.admin-legal-preview {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 4px 16px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+@media (max-width: 860px) {
+  .admin-legal {
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-contact {
   display: flex;
   flex-direction: column;

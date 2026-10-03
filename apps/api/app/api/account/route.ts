@@ -27,9 +27,10 @@ export async function POST(req: Request) {
   const [taken] = await sql<{ id: number }[]>`SELECT id FROM users WHERE email = ${mail}`;
   if (taken && taken.id !== user.id) return new Response('อีเมลนี้มีบัญชีอื่นใช้แล้ว', { status: 409 });
 
+  // Re-accepting a newer policy starts with the newsletter box unticked; that mustn't drop an earlier opt-in.
   await sql`
     UPDATE users SET email = ${mail}, phone = ${tel}, consent_version = ${CONSENT_VERSION}, consent_at = ${Date.now()},
-      marketing_consent = ${marketing === true}, birthdate = ${birth}, guardian_consent = ${guardian === true || user.guardianConsent}
+      marketing_consent = marketing_consent OR ${marketing === true}, birthdate = ${birth}, guardian_consent = ${guardian === true || user.guardianConsent}
     WHERE id = ${user.id}`;
   return new Response(null, { status: 204 });
 }

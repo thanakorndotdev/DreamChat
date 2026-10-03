@@ -1,12 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, ChatsCircle, PencilSimple, Plus, Seal, Trash } from '@phosphor-icons/react';
 import Modal from '@longrak/shared/components/Modal';
-import type { AdminUser } from '@longrak/shared/api-types';
+import type { AdminChat, AdminChatSummary, AdminUser } from '@longrak/shared/api-types';
+import ChatLog from './ChatLog';
 import { adminFetch, errorText, formatDate } from './api';
 
 import { FREE_PLAN_ID, type Plan } from '@longrak/shared/plans';
+import { EVIDENCE_DAYS } from '@longrak/shared/legal-docs';
 
 type Props = {
   toast: (text: string) => void;
@@ -23,6 +25,7 @@ export default function UsersPanel({ toast }: Props) {
   const [query, setQuery] = useState('');
   const [news, setNews] = useState<'all' | 'yes' | 'no'>('all');
   const [editing, setEditing] = useState<AdminUser | 'new' | null>(null);
+  const [reading, setReading] = useState<AdminUser | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
 
   const load = useCallback(() => {
@@ -58,7 +61,7 @@ export default function UsersPanel({ toast }: Props) {
           <h1 className="section-title">ผู้ใช้</h1>
           {users && (
             <p className="admin-summary">
-              {users.length} บัญชี, สมาชิกแบบมีแพ็กเกจ {members} คน, รับข่าวสาร {subscribers} คน แชทของผู้ใช้เป็นความลับ หน้านี้ไม่แสดงเนื้อหาแชท
+              {users.length} บัญชี, สมาชิกแบบมีแพ็กเกจ {members} คน, รับข่าวสาร {subscribers} คน เปิดอ่านแชทเฉพาะเมื่อจำเป็น เช่น ตรวจสอบเรื่องที่ถูกแจ้ง และห้ามเปิดเผย
             </p>
           )}
         </div>
@@ -94,6 +97,8 @@ export default function UsersPanel({ toast }: Props) {
               <th>PDPA</th>
               <th>ข่าวสาร</th>
               <th>สมัครเมื่อ</th>
+              <th>เข้าสู่ระบบล่าสุด</th>
+              <th>ใช้งานล่าสุด</th>
               <th aria-label="จัดการ" />
             </tr>
           </thead>
@@ -126,6 +131,8 @@ export default function UsersPanel({ toast }: Props) {
                 <td data-label="PDPA">{u.consented ? 'ยอมรับ' : 'ยังไม่ยอมรับ'}</td>
                 <td data-label="ข่าวสาร">{u.marketing ? <span className="admin-badge">รับข่าวสาร</span> : 'ไม่รับ'}</td>
                 <td data-label="สมัครเมื่อ">{formatDate(u.createdAt)}</td>
+                <td data-label="เข้าสู่ระบบล่าสุด">{u.lastLoginAt ? formatDate(u.lastLoginAt) : '—'}</td>
+                <td data-label="ใช้งานล่าสุด">{u.lastSeenAt ? formatDate(u.lastSeenAt) : '—'}</td>
                 <td className="admin-actions">
                   {confirmId === u.id ? (
                     <span className="confirm">
@@ -139,6 +146,9 @@ export default function UsersPanel({ toast }: Props) {
                     </span>
                   ) : (
                     <>
+                      <button className="icon-btn" onClick={() => setReading(u)} aria-label={`ดูแชทของ ${u.username}`} title="ดูแชท">
+                        <ChatsCircle size={18} />
+                      </button>
                       <button className="icon-btn" onClick={() => setEditing(u)} aria-label={`แก้ไข ${u.username}`} title="แก้ไข">
                         <PencilSimple size={18} />
                       </button>
@@ -153,6 +163,8 @@ export default function UsersPanel({ toast }: Props) {
           </tbody>
         </table>
       )}
+
+      {reading && <ChatsModal user={reading} onClose={() => setReading(null)} toast={toast} />}
 
       {editing && (
         <UserModal
@@ -340,6 +352,96 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
           </p>
         )}
       </div>
+    </Modal>
+  );
+}
+
+/** An account's chats, then one chat's messages. Read-only: the admin can't change a chat. */
+function ChatsModal({ user, onClose, toast }: { user: AdminUser; onClose: () => void; toast: (text: string) => void }) {
+  const [chats, setChats] = useState<AdminChatSummary[] | null>(null);
+  const [open, setOpen] = useState<AdminChat | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Freezes the open chat as it is now; the copy stays for EVIDENCE_DAYS even if the chat or account goes.
+  const keep = async () => {
+    if (!open) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await adminFetch('/api/admin/evidence', { method: 'POST', body: JSON.stringify({ userId: user.id, chatId: open.id, note }) });
+      toast(`เก็บแชท ${open.name} เป็นหลักฐานแล้ว ดูได้ที่แท็บหลักฐาน`);
+      setNote('');
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    adminFetch<AdminChatSummary[]>(`/api/admin/users/${user.id}/chats`)
+      .then(setChats)
+      .catch((e) => setError(errorText(e)));
+  }, [user.id]);
+
+  const read = (id: string) => {
+    setError(null);
+    adminFetch<AdminChat>(`/api/admin/users/${user.id}/chats/${encodeURIComponent(id)}`)
+      .then(setOpen)
+      .catch((e) => setError(errorText(e)));
+  };
+
+  return (
+    <Modal
+      wide
+      title={open ? `${open.name} กับ ${user.username}` : `แชทของ ${user.username}`}
+      subtitle={open ? `${open.messages.length} ข้อความ อัปเดต ${formatDate(open.updatedAt)} อ่านอย่างเดียว` : 'เปิดอ่านเฉพาะเมื่อจำเป็น และห้ามเปิดเผยเนื้อหาแชท'}
+      onClose={onClose}
+      footer={
+        open ? (
+          <>
+            <button className="btn btn-ghost" onClick={() => setOpen(null)}>
+              <ArrowLeft size={18} />
+              <span>กลับไปรายการแชท</span>
+            </button>
+            <input className="admin-evidence-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="เหตุผล เช่น เลขเรื่องที่ถูกแจ้ง" aria-label="เหตุผลที่เก็บหลักฐาน" />
+            <button className="btn btn-primary" onClick={keep} disabled={saving} title={`เก็บสำเนาแชทนี้ไว้ ${EVIDENCE_DAYS} วัน แก้ไขไม่ได้`}>
+              <Seal size={18} />
+              <span>{saving ? 'กำลังเก็บ…' : 'เก็บหลักฐาน'}</span>
+            </button>
+          </>
+        ) : undefined
+      }
+    >
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      {open ? (
+        <ChatLog chat={open} username={user.username} />
+      ) : chats === null ? (
+        !error && <p className="admin-loading">กำลังโหลด…</p>
+      ) : chats.length === 0 ? (
+        <p className="admin-loading">บัญชีนี้ยังไม่มีแชท</p>
+      ) : (
+        <ul className="admin-chat-list">
+          {chats.map((c) => (
+            <li key={c.id}>
+              <button onClick={() => read(c.id)}>
+                <span className="admin-char-name">{c.name || 'ไม่มีชื่อ'}</span>
+                <span className="admin-char-meta">
+                  {c.messages} ข้อความ · คุยล่าสุด {formatDate(c.updatedAt)}
+                  {c.sourceId ? ' · จากคลังตัวละคร' : ' · ตัวละครที่สร้างเอง'}
+                </span>
+                {c.lastText && <span className="admin-chat-last">{c.lastText}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </Modal>
   );
 }

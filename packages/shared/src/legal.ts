@@ -1,7 +1,8 @@
 import { GUARDIAN_UNDER, ageFromBirthdate } from './age';
 
 /** Bump when the privacy policy or terms change in a way people must accept again. */
-export const CONSENT_VERSION = 1;
+// 2: admins may read a chat when needed (privacy policy, 3 Oct 2569).
+export const CONSENT_VERSION = 2;
 
 export const EMAIL_RULE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

@@ -5,11 +5,13 @@ import { ADMIN_PROXY_HEADER } from '@longrak/shared/forward';
 import { ADULT_AGE, GUARDIAN_UNDER, ageFromBirthdate } from '@longrak/shared/age';
 import { CONSENT_VERSION } from '@longrak/shared/legal';
 import { db } from '@longrak/db';
+import { purgeEvidence } from '@/lib/evidence';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
 const COOKIE = 'dc_session';
 const SESSION_DAYS = 30;
+const SEEN_EVERY_MS = 60_000;
 
 export type User = {
   id: number;
@@ -54,7 +56,9 @@ export async function startSession(req: Request, userId: number) {
   const expires = Date.now() + SESSION_DAYS * 86_400_000;
   const sql = await db();
   await sql`DELETE FROM sessions WHERE expires_at < ${Date.now()}`;
+  await purgeEvidence();
   await sql`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (${sha256(token)}, ${userId}, ${expires})`;
+  await sql`UPDATE users SET last_login_at = ${Date.now()}, last_seen_at = ${Date.now()} WHERE id = ${userId}`;
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -79,11 +83,25 @@ export async function currentUser(): Promise<User | null> {
   if (!token) return null;
   const sql = await db();
   const [row] = await sql<
-    { id: number; username: string; is_admin: boolean; email: string | null; phone: string | null; consent_version: number; birthdate: string | null; guardian_consent: boolean }[]
+    {
+      id: number;
+      username: string;
+      is_admin: boolean;
+      email: string | null;
+      phone: string | null;
+      consent_version: number;
+      birthdate: string | null;
+      guardian_consent: boolean;
+      last_seen_at: number | null;
+    }[]
   >`
-    SELECT users.id, users.username, users.is_admin, users.email, users.phone, users.consent_version, users.birthdate, users.guardian_consent
+    SELECT users.id, users.username, users.is_admin, users.email, users.phone, users.consent_version, users.birthdate, users.guardian_consent, users.last_seen_at
     FROM sessions JOIN users ON users.id = sessions.user_id
     WHERE sessions.token_hash = ${sha256(token)} AND sessions.expires_at > ${Date.now()}`;
+  // "Last active" for the admin's user list; at most one write a minute, and never in the request's way.
+  if (row && (row.last_seen_at ?? 0) < Date.now() - SEEN_EVERY_MS) {
+    sql`UPDATE users SET last_seen_at = ${Date.now()} WHERE id = ${row.id}`.catch((e: unknown) => console.error('[auth] last_seen_at:', e));
+  }
   return row
     ? {
         id: row.id,

@@ -47,6 +47,10 @@ export type AdminUser = {
   username: string;
   isAdmin: boolean;
   createdAt: number;
+  /** Null until they sign in after this was added. */
+  lastLoginAt: number | null;
+  /** Last request with their session, to the minute; before tracking began, their newest chat update. */
+  lastSeenAt: number | null;
   email: string | null;
   phone: string | null;
   consented: boolean;
@@ -54,11 +58,33 @@ export type AdminUser = {
   age: number | null;
   guardianConsent: boolean;
   marketing: boolean;
-  /** How many chats they keep; the chats themselves are private and never sent here. */
+  /** How many chats they keep; the admin opens them one at a time (AdminChat), read-only. */
   characters: number;
   sessions: number;
   tokens: number;
   plan: { id: string; name: string; source: string; until: number; status: string; cancelAtPeriodEnd: boolean } | null;
+};
+
+/** One chat in an account's list, for the admin; the messages come only when it is opened. */
+export type AdminChatSummary = {
+  id: string;
+  name: string;
+  /** Set when the chat was started from the public catalog. */
+  sourceId: string | null;
+  messages: number;
+  lastText: string;
+  updatedAt: number;
+};
+
+/** A chat as the admin reads it. Read-only: no admin endpoint changes a chat. */
+export type AdminChat = {
+  id: string;
+  name: string;
+  role: string;
+  avatar: string;
+  userName: string;
+  messages: { sender: 'user' | 'char'; text: string; failed?: boolean }[];
+  updatedAt: number;
 };
 
 export type AdminSettings = {
@@ -74,3 +100,19 @@ export type AdminSettings = {
 };
 
 export type Throttle = { key: string; count: number; limit: number; until: number; blocked: boolean };
+
+/** An admin's frozen copy of a chat, kept as evidence until expiresAt. */
+export type AdminEvidence = {
+  id: number;
+  /** Null once the account is deleted; the username stays. */
+  userId: number | null;
+  username: string;
+  chatName: string;
+  messages: number;
+  note: string;
+  savedBy: string;
+  createdAt: number;
+  expiresAt: number;
+};
+
+export type AdminEvidenceDetail = AdminEvidence & { chat: AdminChat };

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, SignOut } from '@phosphor-icons/react';
 import CatalogPanel from '@/components/CatalogPanel';
 import CouponsPanel from '@/components/CouponsPanel';
+import EvidencePanel from '@/components/EvidencePanel';
+import LegalPanel from '@/components/LegalPanel';
 import PlansPanel from '@/components/PlansPanel';
 import ReportsPanel from '@/components/ReportsPanel';
 import SecurityPanel from '@/components/SecurityPanel';
@@ -16,15 +18,17 @@ import { useToast } from '@longrak/shared/components/Toast';
 /** The public site, for the back arrow; optional. */
 const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://longrakchat.com';
 
-type Tab = 'users' | 'catalog' | 'reports' | 'plans' | 'tokens' | 'coupons' | 'security' | 'settings';
+type Tab = 'users' | 'evidence' | 'catalog' | 'reports' | 'plans' | 'tokens' | 'coupons' | 'legal' | 'security' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'users', label: 'ผู้ใช้' },
+  { id: 'evidence', label: 'หลักฐาน' },
   { id: 'catalog', label: 'คลังตัวละคร' },
   { id: 'reports', label: 'แจ้งปัญหา' },
   { id: 'plans', label: 'แพ็กเกจ' },
   { id: 'tokens', label: 'โทเคน' },
   { id: 'coupons', label: 'โค้ดส่วนลด' },
+  { id: 'legal', label: 'นโยบาย' },
   { id: 'security', label: 'ความปลอดภัย' },
   { id: 'settings', label: 'ตั้งค่าระบบ' },
 ];
@@ -86,11 +90,13 @@ export default function AdminPage() {
         </div>
 
         {tab === 'users' && <UsersPanel toast={toast} />}
+        {tab === 'evidence' && <EvidencePanel toast={toast} />}
         {tab === 'catalog' && <CatalogPanel toast={toast} />}
         {tab === 'reports' && <ReportsPanel toast={toast} />}
         {tab === 'plans' && <PlansPanel toast={toast} />}
         {tab === 'tokens' && <TokensPanel toast={toast} />}
         {tab === 'coupons' && <CouponsPanel toast={toast} />}
+        {tab === 'legal' && <LegalPanel toast={toast} />}
         {tab === 'security' && <SecurityPanel toast={toast} />}
         {tab === 'settings' && <SettingsPanel toast={toast} />}
       </main>

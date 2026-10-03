@@ -76,10 +76,31 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
     } catch {}
   };
 
+  // Follow the reply as it streams, unless the reader scrolled up (PageUp) to read back.
+  const atBottom = useRef(true);
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [char.messages.length, streaming]);
+    atBottom.current = true;
+  }, [char.messages.length]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (el && atBottom.current) el.scrollTop = el.scrollHeight;
+  }, [streaming]);
+
+  // PageUp/PageDown scroll the transcript, even while typing; other fields and dialogs keep the keys.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key !== 'PageUp' && e.key !== 'PageDown') || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      const el = scroller.current;
+      const t = e.target as HTMLElement | null;
+      if (!el || (t && t !== textarea.current && (t.closest('input, select, textarea, [contenteditable]') || t.closest('[role="dialog"]')))) return;
+      e.preventDefault();
+      el.scrollBy({ top: (e.key === 'PageUp' ? -1 : 1) * el.clientHeight * 0.85, behavior: 'smooth' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Jot a story note in the background once enough of the chat isn't covered by one yet.
   const jot = async (from: Character) => {
@@ -427,7 +448,15 @@ export default function ChatRoom({ character: char, host, model, billing, onRepl
           </div>
         </header>
 
-        <div ref={scroller} className="transcript" aria-live="polite">
+        <div
+          ref={scroller}
+          className="transcript"
+          aria-live="polite"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          }}
+        >
           <div className="transcript-inner">
             <header className="chat-intro">
               <img src={char.avatar} alt="" />

@@ -47,7 +47,7 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     level: 1,
     price: 9_900,
     interval: 'month',
-    features: { dailyMessages: 0, freePerCharacter: 20, checkinTokens: 100, model: '', historyWindow: 16, memoryNotes: 15, maxCharacters: 15 },
+    features: { dailyMessages: 0, freePerCharacter: 0, checkinTokens: 100, model: '', historyWindow: 16, memoryNotes: 15, maxCharacters: 15 },
     perks: [
       'คุยได้ไม่จำกัดจำนวนต่อวัน',
       'เช็คอินรับ 100 โทเคนทุกวัน ไว้ปลดล็อกตัวละครที่ชอบ',
@@ -65,7 +65,7 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     level: 2,
     price: 19_900,
     interval: 'month',
-    features: { dailyMessages: 0, freePerCharacter: 20, checkinTokens: 100, model: '', historyWindow: 30, memoryNotes: 40, maxCharacters: 0 },
+    features: { dailyMessages: 0, freePerCharacter: 0, checkinTokens: 100, model: '', historyWindow: 30, memoryNotes: 40, maxCharacters: 0 },
     perks: [
       'คุยได้ไม่จำกัดจำนวนต่อวัน',
       'เช็คอินรับ 100 โทเคนทุกวัน ไว้ปลดล็อกตัวละครที่ชอบ',
