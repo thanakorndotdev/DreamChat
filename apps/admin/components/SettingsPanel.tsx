@@ -183,29 +183,24 @@ export default function SettingsPanel({ toast }: { toast: (text: string) => void
 
       <div className="admin-head">
         <div>
-          <h2 className="section-title">วาดภาพตัวละคร (ComfyUI + Flux.1)</h2>
-          <p className="admin-summary">ตั้งใน env ของเซิร์ฟเวอร์แล้ว restart จำนวนรูปต่อวันและคุณภาพตั้งแยกตามแพ็กเกจในแท็บแพ็กเกจ</p>
+          <h2 className="section-title">วาดภาพตัวละคร (Workers AI + FLUX.2)</h2>
+          <p className="admin-summary">ใช้บัญชีและ token ของ Workers AI ด้านบน จำนวนรูปต่อวันและคุณภาพตั้งแยกตามแพ็กเกจในแท็บแพ็กเกจ</p>
         </div>
       </div>
       <dl className="settings-form stripe-status">
         <div>
-          <dt>COMFYUI_URL</dt>
-          <dd data-ok={settings.images.online || undefined}>
-            {!settings.images.url ? 'ยังไม่ได้ตั้ง ผู้ใช้จะวาดภาพด้วย AI ไม่ได้' : settings.images.online ? 'ตั้งแล้ว เชื่อมต่อได้' : 'ตั้งแล้ว แต่ติดต่อเซิร์ฟเวอร์ ComfyUI ไม่ได้'}
+          <dt>สถานะ</dt>
+          <dd data-ok={settings.images.ready || undefined}>
+            {settings.images.ready ? 'พร้อมวาดภาพ' : 'ยังไม่ได้ตั้ง Account ID และ API token ของ Workers AI ผู้ใช้จะวาดภาพด้วย AI ไม่ได้'}
           </dd>
         </div>
         <div>
-          <dt>COMFYUI_FLUX_CHECKPOINT</dt>
+          <dt>CLOUDFLARE_IMAGE_MODEL</dt>
           <dd>
-            <code>{settings.images.checkpoints.schnell}</code>
-            <span className="help">Flux.1 [schnell] แบบรวมไฟล์เดียว วางใน ComfyUI/models/checkpoints ใช้กับทุกคุณภาพ</span>
-          </dd>
-        </div>
-        <div>
-          <dt>COMFYUI_FLUX_DEV_CHECKPOINT</dt>
-          <dd>
-            {settings.images.checkpoints.dev ? <code>{settings.images.checkpoints.dev}</code> : 'ไม่ได้ตั้ง คุณภาพพรีเมียมใช้ schnell ที่ขนาดใหญ่ขึ้น'}
-            <span className="help">ไม่บังคับ ภาพละเอียดกว่าแต่ช้ากว่า ใช้ในบริการที่เก็บเงินได้ต้องมีไลเซนส์เชิงพาณิชย์จาก Black Forest Labs</span>
+            <code>{settings.images.model}</code>
+            <span className="help">
+              ตั้งใน env ของเซิร์ฟเวอร์แล้ว restart ค่าเริ่มต้น flux-2-klein-4b ใช้ราว 100 neurons ต่อรูป โควตาฟรีวันละ 10,000 neurons (ใช้ร่วมกับแชท) จึงวาดได้ราว 100 รูปต่อวัน
+            </span>
           </dd>
         </div>
       </dl>

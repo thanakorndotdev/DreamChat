@@ -1,9 +1,9 @@
 import { requireAdmin } from '@/lib/auth';
-import { comfyStatus } from '@/lib/comfyui';
 import { resolveHost } from '@/lib/host';
 import type { AdminSettings } from '@longrak/shared/api-types';
 import { SETTING_KEYS, type SettingKey, getSetting, setSetting } from '@/lib/settings';
 import { DEFAULT_CF_MODEL, workersAi, workersAiChat } from '@/lib/workersAi';
+import { imageStatus } from '@/lib/workersAiImage';
 
 
 /** Ollama first when the server pins one (OLLAMA_URL + OLLAMA_MODEL), with Workers AI behind it. */
@@ -38,7 +38,7 @@ async function snapshot(): Promise<AdminSettings> {
       webhook: !!process.env.STRIPE_WEBHOOK_SECRET?.trim(),
       appUrl: process.env.APP_URL?.trim() ?? '',
     },
-    images: await comfyStatus(),
+    images: await imageStatus(),
   };
 }
 

@@ -97,8 +97,8 @@ export type AdminSettings = {
   active: { backend: 'ollama' | 'workers-ai' | null; model: string | null; fallback: string | null };
   env: { cf_account_id: string; cf_model: string; cf_fallback_model: string; default_model: string };
   stripe: { secretKey: 'live' | 'test' | null; webhook: boolean; appUrl: string };
-  /** Character pictures (ComfyUI + Flux.1); set in env only. */
-  images: { url: boolean; online: boolean; checkpoints: { schnell: string; dev: string | null } };
+  /** Character pictures (Workers AI, FLUX.2 [klein]); ready when the Workers AI account and token are set. */
+  images: { ready: boolean; model: string };
 };
 
 export type Throttle = { key: string; count: number; limit: number; until: number; blocked: boolean };

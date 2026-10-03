@@ -319,7 +319,7 @@ const MIGRATIONS: Migration[] = [
   INSERT INTO payments (id, user_id, kind, plan_id, amount, at)
     SELECT id, user_id, 'promptpay', plan_id, amount, coalesce(paid_at, created_at) FROM promptpay_payments WHERE status = 'paid';
   `,
-  // Character pictures drawn on our own GPU (ComfyUI + Flux), counted per day like chat.
+  // Character pictures drawn with AI, counted per day like chat.
   `ALTER TABLE usage ADD COLUMN image integer NOT NULL DEFAULT 0;`,
   // Pictures per day and their quality go up with the plan. A plan an admin already gave these keeps them.
   async (tx) => {

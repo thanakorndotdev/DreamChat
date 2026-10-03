@@ -14,7 +14,7 @@ export type PlanFeatures = {
   memoryNotes: number;
   /** Own characters an account may keep; 0 = unlimited. */
   maxCharacters: number;
-  /** Character pictures drawn (ComfyUI + Flux) per day; 0 = none. */
+  /** Character pictures drawn (Workers AI, FLUX.2) per day; 0 = none. */
   dailyImages: number;
   /** How the pictures are drawn; see IMAGE_QUALITY. */
   imageQuality: ImageQuality;

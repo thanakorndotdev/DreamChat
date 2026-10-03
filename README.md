@@ -67,19 +67,15 @@ public-site tunnel, and the API has no public hostname. To grant an existing acc
 docker compose --project-directory . -f docker/docker-compose.yml exec api node scripts/make-admin.mjs <username>
 ```
 
-## Character pictures (ComfyUI + Flux.1)
+## Character pictures (Workers AI + FLUX.2)
 
-The create-character wizard draws covers on our own GPU. The api calls ComfyUI server-side
-(`apps/api/lib/comfyui.ts`); browsers never reach it, and the plan decides pictures per day and
-quality (Plans tab in the admin console: standard 576×768, HD 768×1024, premium 896×1184).
+The create-character wizard draws covers with Cloudflare Workers AI, using the same
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` as the chat fallback. The api calls it
+server-side (`apps/api/lib/workersAiImage.ts`); the plan decides pictures per day and quality
+(Plans tab in the admin console: standard 576×768, HD 768×1024, premium 896×1184).
 
-1. Run ComfyUI on the GPU box, e.g. as a `comfyui` service in the `local-llm` stack next to Ollama,
-   listening on 8188.
-2. Download the all-in-one checkpoint `flux1-schnell-fp8.safetensors` (Hugging Face
-   `Comfy-Org/flux1-schnell`) into `ComfyUI/models/checkpoints/`. Flux.1 [schnell] is Apache-2.0.
-3. Optional, for premium: `flux1-dev-fp8.safetensors` (`Comfy-Org/flux1-dev`) and set
-   `COMFYUI_FLUX_DEV_CHECKPOINT`. Flux.1 [dev] needs a commercial licence for a paid service.
-4. Set `COMFYUI_URL=http://comfyui:8188` in `.env` and restart the api. The admin Settings tab
-   shows whether it answers.
+The default model, `@cf/black-forest-labs/flux-2-klein-4b`, costs about 80–110 neurons a picture,
+so the free 10,000 neurons a day (shared with chat) cover about a hundred pictures. Another FLUX.2
+model goes in `CLOUDFLARE_IMAGE_MODEL`, e.g. `flux-2-klein-9b` (a little better, ~1,400 neurons a picture).
 
 Moving an existing SQLite install over: see `MIGRATE-POSTGRES.md`.

@@ -39,10 +39,8 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - APP_URL=${APP_URL:-}
-      # Character pictures: ComfyUI with Flux.1 on the GPU box, e.g. http://comfyui:8188 on the local-llm network. Empty = off.
-      - COMFYUI_URL=${COMFYUI_URL:-}
-      - COMFYUI_FLUX_CHECKPOINT=${COMFYUI_FLUX_CHECKPOINT:-}
-      - COMFYUI_FLUX_DEV_CHECKPOINT=${COMFYUI_FLUX_DEV_CHECKPOINT:-}
+      # Character pictures: Workers AI, same account and token. Optional, default @cf/black-forest-labs/flux-2-klein-4b.
+      - CLOUDFLARE_IMAGE_MODEL=${CLOUDFLARE_IMAGE_MODEL:-}
     networks:
       default:
       # Reaches Ollama (service `ollama` in ~/local-llm) as http://ollama:11434.

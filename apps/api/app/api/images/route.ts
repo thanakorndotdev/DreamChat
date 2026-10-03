@@ -1,14 +1,14 @@
 import { requireMember } from '@/lib/auth';
 import { effectivePlan, releaseUsage, reserveUsage, usageToday } from '@/lib/billing';
-import { comfyImage } from '@/lib/comfyui';
 import { unsafeImagePrompt } from '@/lib/imageSafety';
 import { allow } from '@/lib/rateLimit';
+import { workersAiImage } from '@/lib/workersAiImage';
 
 /**
- * Draws one character picture on our GPU (ComfyUI + Flux.1), within the plan's pictures per day
+ * Draws one character picture with Cloudflare Workers AI (FLUX.2 [klein]), within the plan's pictures per day
  * and at the plan's quality.
  *
- *   { prompt }  → the image (PNG); header X-Images-Left is what remains today
+ *   { prompt }  → the image (JPEG); header X-Images-Left is what remains today
  *
  * The browser sends only the description; the style and the safety wording are added here.
  */
@@ -40,11 +40,11 @@ export async function POST(req: Request) {
   const plan = await effectivePlan(user.id);
   const perDay = plan.features.dailyImages ?? 0;
   if (perDay <= 0) return bad('แพ็กเกจนี้ยังวาดภาพด้วย AI ไม่ได้ อัปเกรดเพื่อใช้งาน', 402);
-  // One picture at a time per account is plenty; this stops a script from flooding the GPU queue.
+  // One picture at a time per account is plenty; this stops a script from burning the day's Workers AI neurons.
   if (!(await allow(`image:${user.id}`, 6, 60_000))) return bad('สร้างภาพถี่เกินไป รอสักครู่แล้วลองใหม่', 429);
   if (!(await reserveUsage(user.id, 'image', perDay))) return bad(`วันนี้วาดภาพครบ ${perDay} รูปตามแพ็กเกจ ${plan.name} แล้ว ลองใหม่พรุ่งนี้หรืออัปเกรดแพ็กเกจ`, 429);
 
-  const res = await comfyImage(buildPrompt(prompt), plan.features.imageQuality ?? 'standard', req.signal);
+  const res = await workersAiImage(buildPrompt(prompt), plan.features.imageQuality ?? 'standard', req.signal);
   if (!res.ok || !res.body) {
     await releaseUsage(user.id, 'image');
     return res.status === 499 ? bad('หยุดแล้ว', 499) : bad(await res.text(), 503);
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   const left = Math.max(0, perDay - (await usageToday(user.id)).image);
   return new Response(res.body, {
     headers: {
-      'Content-Type': res.headers.get('content-type') ?? 'image/png',
+      'Content-Type': res.headers.get('content-type') ?? 'image/jpeg',
       'Cache-Control': 'no-store',
       'X-Images-Left': String(left),
     },

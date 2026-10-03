@@ -216,7 +216,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan; onClose: () =>
           <label className="field">
             <span className="field-label">วาดภาพตัวละครต่อวัน</span>
             <input type="number" min={0} value={f.dailyImages ?? 0} onChange={(e) => num('dailyImages', e.target.value)} />
-            <span className="help">ComfyUI + Flux บน GPU ของเรา 0 = วาดไม่ได้</span>
+            <span className="help">Workers AI (FLUX.2 [klein]) 0 = วาดไม่ได้</span>
           </label>
           <label className="field">
             <span className="field-label">คุณภาพภาพ</span>
@@ -227,7 +227,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan; onClose: () =>
                 </option>
               ))}
             </select>
-            <span className="help">มาตรฐาน 576×768 · HD 768×1024 · พรีเมียม 896×1184 (ใช้ Flux dev ถ้าตั้งไว้)</span>
+            <span className="help">มาตรฐาน 576×768 · HD 768×1024 · พรีเมียม 896×1184</span>
           </label>
         </div>
         <label className="field">

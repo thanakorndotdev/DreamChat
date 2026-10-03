@@ -7,7 +7,7 @@ import { BOT_PRESETS, DEFAULT_AVATAR, IMAGE_THEMES, USER_PRESETS, pickNew } from
 import { ageNumber } from '@longrak/shared/age';
 import { fileToAvatar } from '@longrak/shared/image';
 import { generateCharacter } from '@/lib/ollama';
-import { IMAGE_QUALITY_LABEL, type ImageQuality } from '@longrak/shared/plans';
+import type { ImageQuality } from '@longrak/shared/plans';
 import type { Character } from '@longrak/shared/types';
 
 const STEPS = ['ตัวละคร', 'บทบาทคุณ', 'รูปภาพ'];
@@ -401,7 +401,7 @@ export default function CreateWizard({ host, model, onClose, onCreate, userAdult
               hint={
                 images
                   ? images.perDay > 0
-                    ? `พิมพ์ไทยได้ วาดด้วย Flux คุณภาพ${IMAGE_QUALITY_LABEL[images.quality]} วันนี้เหลือ ${left ?? images.perDay}/${images.perDay} รูป`
+                    ? `พิมพ์ไทยได้ วาดด้วย FLUX.2 [klein] วันนี้เหลือ ${left ?? images.perDay}/${images.perDay} รูป`
                     : 'แพ็กเกจนี้ยังวาดภาพด้วย AI ไม่ได้ อัปโหลดรูปเองหรือวางลิงก์รูปแทนได้'
                   : 'พิมพ์ไทยได้ ระบบจะแปลแล้ววาดภาพให้'
               }
