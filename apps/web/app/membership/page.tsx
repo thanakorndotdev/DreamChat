@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, Crown, QrCode } from '@phosphor-icons/react';
+import { ArrowLeft, CalendarCheck, Check, Coins, Crown, QrCode } from '@phosphor-icons/react';
 import type { BillingState } from '@longrak/shared/api-types';
 import { useToast } from '@longrak/shared/components/Toast';
 import { FREE_PLAN_ID, INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
@@ -349,7 +349,7 @@ export default function MembershipPage() {
         </section>
 
         <p className="help membership-help">
-          สมัครด้วยบัตรเครดิต/เดบิตจะต่ออายุอัตโนมัติจนกว่าจะยกเลิก จ่ายด้วย QR PromptPay ได้ทีละรอบ (30 วันหรือ 365 วัน) ไม่ต่ออายุเอง
+          สมัครด้วยบัตรเครดิต/เดบิตจะต่ออายุอัตโนมัติจนกว่าจะยกเลิก จ่ายด้วย QR PromptPay ได้ทีละรอบ (30 วันหรือ 365 วัน) ไม่ต่ออายุเอง แพ็กโทเคนจ่ายครั้งเดียว ไม่ต่ออายุ
           ชำระผ่าน Stripe เราไม่เก็บเลขบัตรของคุณ อ่าน{' '}
           <Link href="/terms">ข้อกำหนดการใช้งาน</Link>
         </p>
