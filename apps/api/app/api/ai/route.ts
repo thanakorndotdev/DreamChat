@@ -113,7 +113,8 @@ export async function POST(req: Request) {
     if (!res.ok || !res.body) {
       await release();
       // The detail (already logged by workersAiChat) can name the account or model; the reader only needs to retry.
-      return bad(res.status === 499 ? 'หยุดแล้ว' : 'AI ไม่ว่างชั่วคราว ลองส่งใหม่อีกครั้ง', res.status === 499 ? 499 : 502);
+      // 503, not 502: Cloudflare swaps an origin 502 for its own "Bad gateway" page and the message is lost.
+      return bad(res.status === 499 ? 'หยุดแล้ว' : 'AI ไม่ว่างชั่วคราว ลองส่งใหม่อีกครั้ง', res.status === 499 ? 499 : 503);
     }
     return new Response(res.body, { headers });
   }
@@ -135,12 +136,12 @@ export async function POST(req: Request) {
     });
   } catch {
     await release();
-    return bad(OFFLINE_HINT, 502);
+    return bad(OFFLINE_HINT, 503);
   }
   if (!res.ok || !res.body) {
     await release();
     const notFound = res.status === 404 ? ` — ไม่พบโมเดล "${model}" ลองรัน ollama pull ${model}` : '';
-    return bad(`Ollama ตอบกลับ HTTP ${res.status}${notFound}`, 502);
+    return bad(`Ollama ตอบกลับ HTTP ${res.status}${notFound}`, 503);
   }
   return new Response(res.body, { headers });
 }

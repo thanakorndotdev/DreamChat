@@ -15,6 +15,11 @@ services:
       args: { APP: api }
     container_name: dreamchat-api
     restart: unless-stopped
+    # The host resolves through Tailscale MagicDNS, which drops out now and then; Workers AI calls
+    # then fail with "network error". Public resolvers, as for cloudflared.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       db:
         condition: service_healthy

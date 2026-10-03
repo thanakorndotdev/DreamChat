@@ -80,11 +80,13 @@ export async function workersAiChat(
         body,
         signal,
       });
-    } catch {
+    } catch (e) {
       if (signal.aborted) return new Response(null, { status: 499 });
       res = null;
       failure = 'เชื่อมต่อ Cloudflare Workers AI ไม่ได้';
-      console.error(`[workersAi] ${attempt.model}: network error`);
+      // undici hides the reason (EAI_AGAIN, ECONNRESET, ...) in `cause`.
+      const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+      console.error(`[workersAi] ${attempt.model}: network error: ${cause?.code ?? cause?.message ?? (e as Error).message}`);
       continue;
     }
     if (res.ok && res.body) break;
