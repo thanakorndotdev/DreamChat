@@ -10,6 +10,7 @@ import PlansPanel from '@/components/PlansPanel';
 import ReportsPanel from '@/components/ReportsPanel';
 import SecurityPanel from '@/components/SecurityPanel';
 import SettingsPanel from '@/components/SettingsPanel';
+import StatsPanel from '@/components/StatsPanel';
 import TokensPanel from '@/components/TokensPanel';
 import UsersPanel from '@/components/UsersPanel';
 import Copyright from '@longrak/shared/components/Copyright';
@@ -18,9 +19,10 @@ import { useToast } from '@longrak/shared/components/Toast';
 /** The public site, for the back arrow; optional. */
 const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://longrakchat.com';
 
-type Tab = 'users' | 'evidence' | 'catalog' | 'reports' | 'plans' | 'tokens' | 'coupons' | 'legal' | 'security' | 'settings';
+type Tab = 'overview' | 'users' | 'evidence' | 'catalog' | 'reports' | 'plans' | 'tokens' | 'coupons' | 'legal' | 'security' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'overview', label: 'ภาพรวม' },
   { id: 'users', label: 'ผู้ใช้' },
   { id: 'evidence', label: 'หลักฐาน' },
   { id: 'catalog', label: 'คลังตัวละคร' },
@@ -35,7 +37,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function AdminPage() {
   const [me, setMe] = useState<{ username: string | null; isAdmin: boolean } | undefined>(undefined);
-  const [tab, setTab] = useState<Tab>('users');
+  const [tab, setTab] = useState<Tab>('overview');
   const { toast, Toast } = useToast();
 
   const loadMe = () =>
@@ -89,6 +91,7 @@ export default function AdminPage() {
           ))}
         </div>
 
+        {tab === 'overview' && <StatsPanel toast={toast} />}
         {tab === 'users' && <UsersPanel toast={toast} />}
         {tab === 'evidence' && <EvidencePanel toast={toast} />}
         {tab === 'catalog' && <CatalogPanel toast={toast} />}

@@ -1,4 +1,5 @@
 import { db } from '@longrak/db';
+import { recordPayment } from '@/lib/payments';
 import { getPlan } from '@/lib/billing';
 import { stripe } from '@/lib/stripe';
 
@@ -57,10 +58,11 @@ export async function savePromptPay(userId: number, p: Omit<PromptPayPayment, 's
 export async function grantPromptPay(id: string) {
   const sql = await db();
   await sql.begin(async (tx) => {
-    const [p] = await tx<{ user_id: number; plan_id: string; code: string | null }[]>`
+    const [p] = await tx<{ user_id: number; plan_id: string; code: string | null; amount: number }[]>`
       UPDATE promptpay_payments SET status = 'paid', paid_at = ${Date.now()}
-      WHERE id = ${id} AND status <> 'paid' RETURNING user_id, plan_id, code`;
+      WHERE id = ${id} AND status <> 'paid' RETURNING user_id, plan_id, code, amount`;
     if (!p) return;
+    await recordPayment({ id, userId: p.user_id, kind: 'promptpay', planId: p.plan_id, amount: p.amount }, tx);
     const plan = await getPlan(p.plan_id);
     if (!plan) throw new Error(`plan ${p.plan_id} is gone`);
 

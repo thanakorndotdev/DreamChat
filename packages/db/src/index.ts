@@ -304,6 +304,21 @@ const MIGRATIONS: Migration[] = [
   );
   CREATE INDEX chat_evidence_expires ON chat_evidence (expires_at);
   `,
+  `
+  -- Money actually received, for the admin's revenue figures: card invoices, token packs and PromptPay.
+  -- Refunds are negative rows. Stripe's own records stay the source of truth for accounting.
+  CREATE TABLE payments (
+    id text PRIMARY KEY,                    -- Stripe invoice, checkout session, PaymentIntent or refund id
+    user_id integer REFERENCES users(id) ON DELETE SET NULL,
+    kind text NOT NULL,                     -- subscription | tokens | promptpay | refund
+    plan_id text,
+    amount integer NOT NULL,                -- satang; negative for a refund
+    at bigint NOT NULL
+  );
+  CREATE INDEX payments_at ON payments (at);
+  INSERT INTO payments (id, user_id, kind, plan_id, amount, at)
+    SELECT id, user_id, 'promptpay', plan_id, amount, coalesce(paid_at, created_at) FROM promptpay_payments WHERE status = 'paid';
+  `,
 ];
 
 async function migrate(sql: Sql) {

@@ -116,3 +116,44 @@ export type AdminEvidence = {
 };
 
 export type AdminEvidenceDetail = AdminEvidence & { chat: AdminChat };
+
+/** One Bangkok day on the admin's overview; money in satang. */
+export type StatsDay = { day: string; signups: number; activeChatters: number; messages: number; revenue: number };
+
+/** The admin's overview: marketing and money figures, all aggregated (no one's personal data). */
+export type AdminStats = {
+  generatedAt: number;
+  users: {
+    total: number;
+    new7: number;
+    new30: number;
+    /** Sent at least one chat message in the last 1 / 7 / 30 days. */
+    chatters1: number;
+    chatters7: number;
+    chatters30: number;
+    /** Any request in the last 7 days (tracked from 3 Oct 2569). */
+    seen7: number;
+    marketingOptIn: number;
+    consented: number;
+    ages: { label: string; count: number }[];
+  };
+  plans: { id: string; name: string; price: number; interval: 'month' | 'year'; paying: number; free: number }[];
+  /** Messages per active chatter over the last 30 days. */
+  messagesPerChatter30: number;
+  characters: { own: number; fromCatalog: number; catalogPublished: number; catalogPending: number };
+  topCatalog: { id: string; name: string; chats: number; messages: number; unlocks: number }[];
+  coupons: { code: string; redemptions: number }[];
+  money: {
+    revenue30: number;
+    revenuePrev30: number;
+    revenueAll: number;
+    refundsAll: number;
+    byKind30: { kind: string; amount: number; count: number }[];
+    /** Card subscriptions that renew, as monthly money. */
+    mrr: number;
+    payingMembers: number;
+    pendingPromptPay: number;
+  };
+  tokens: { outstanding: number; bought30: number; checkin30: number; spentMessages30: number; spentUnlocks30: number; admin30: number };
+  days: StatsDay[];
+};

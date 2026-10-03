@@ -3,6 +3,7 @@ import { db } from '@longrak/db';
 import { cancelPromptPay, grantPromptPay } from '@/lib/promptpay';
 import { type StripeSubscription, periodEnd, stripe, verifyWebhook } from '@/lib/stripe';
 import { creditPurchase } from '@/lib/tokens';
+import { recordPayment } from '@/lib/payments';
 
 type Event = { id: string; type: string; data: { object: Record<string, unknown> } };
 
@@ -24,6 +25,7 @@ async function applyTokenPurchase(session: Record<string, unknown>) {
     return;
   }
   await creditPurchase(userId, tokens, String(session.id));
+  await recordPayment({ id: String(session.id), userId, kind: 'tokens', planId: null, amount: Number(session.amount_total) || 0 });
 }
 
 async function applySubscription(sub: StripeSubscription) {
@@ -76,7 +78,20 @@ export async function POST(req: Request) {
         break;
       case 'invoice.paid': {
         const subId = (obj.subscription ?? (obj.parent as { subscription_details?: { subscription?: string } })?.subscription_details?.subscription) as string | undefined;
-        if (subId) await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${subId}`));
+        if (!subId) break;
+        const sub = await stripe<StripeSubscription>('GET', `subscriptions/${subId}`);
+        await applySubscription(sub);
+        await recordPayment({ id: String(obj.id), userId: await userFor(sub), kind: 'subscription', planId: sub.metadata?.planId ?? null, amount: Number(obj.amount_paid) || 0 });
+        break;
+      }
+      case 'charge.refunded': {
+        // One row per refund, so a second partial refund adds to the first. The charge no longer lists them.
+        const { data: refunds } = await stripe<{ data: { id: string; amount: number }[] }>('GET', 'refunds', { charge: obj.id, limit: 100 });
+        const customer = typeof obj.customer === 'string' ? obj.customer : null;
+        const [owner] = customer ? await sql<{ id: number }[]>`SELECT id FROM users WHERE stripe_customer_id = ${customer}` : [];
+        const meta = (obj.metadata ?? {}) as Record<string, string>;
+        const userId = owner?.id ?? (Number(meta.userId) || null);
+        for (const r of refunds) await recordPayment({ id: r.id, userId, kind: 'refund', planId: meta.planId ?? null, amount: -r.amount });
         break;
       }
       case 'payment_intent.succeeded':
