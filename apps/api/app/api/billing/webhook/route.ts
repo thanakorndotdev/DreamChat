@@ -1,5 +1,6 @@
 import { getPlan, recordRedemption, setSubscription } from '@/lib/billing';
 import { db } from '@longrak/db';
+import { cancelPromptPay, grantPromptPay } from '@/lib/promptpay';
 import { type StripeSubscription, periodEnd, stripe, verifyWebhook } from '@/lib/stripe';
 import { creditPurchase } from '@/lib/tokens';
 
@@ -78,6 +79,13 @@ export async function POST(req: Request) {
         if (subId) await applySubscription(await stripe<StripeSubscription>('GET', `subscriptions/${subId}`));
         break;
       }
+      case 'payment_intent.succeeded':
+        if ((obj.metadata as Record<string, string> | undefined)?.kind === 'promptpay') await grantPromptPay(obj.id as string);
+        break;
+      case 'payment_intent.canceled':
+      case 'payment_intent.payment_failed':
+        if ((obj.metadata as Record<string, string> | undefined)?.kind === 'promptpay') await cancelPromptPay(obj.id as string);
+        break;
     }
   } catch (e) {
     // Answer 500 so Stripe retries (it backs off for up to 3 days); a lasting failure shows in its dashboard.
