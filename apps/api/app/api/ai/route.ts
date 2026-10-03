@@ -131,7 +131,8 @@ export async function POST(req: Request) {
     res = await fetch(`${host}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: true, options: { temperature: 0.85, top_p: 0.95, num_predict: maxTokens } }),
+      // think: false — thinking models (Qwen 3.6) otherwise spend num_predict on reasoning the reader never sees.
+      body: JSON.stringify({ model, messages, stream: true, think: false, options: { temperature: 0.85, top_p: 0.95, num_predict: maxTokens } }),
       signal: req.signal,
     });
   } catch {
