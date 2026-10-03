@@ -161,6 +161,23 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX rate_limits_until ON rate_limits (until);
   `,
+  `
+  -- One-off PromptPay QR payments (Stripe PaymentIntents). Each paid one adds a plan period with
+  -- subscriptions.source = 'promptpay'; PromptPay can't be charged again automatically.
+  CREATE TABLE promptpay_payments (
+    id text PRIMARY KEY,                    -- Stripe PaymentIntent id
+    user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan_id text NOT NULL REFERENCES plans(id),
+    code citext,                            -- discount code used, counted once paid
+    amount integer NOT NULL,                -- satang
+    status text NOT NULL,                   -- pending | paid | canceled
+    qr text NOT NULL,                       -- Stripe-hosted QR image (SVG)
+    test_url text,                          -- test mode only: Stripe's page to simulate paying
+    created_at bigint NOT NULL,
+    paid_at bigint
+  );
+  CREATE INDEX promptpay_payments_user ON promptpay_payments (user_id, created_at DESC);
+  `,
 ];
 
 async function migrate(sql: Sql) {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, Crown } from '@phosphor-icons/react';
+import { ArrowLeft, Check, Crown, QrCode } from '@phosphor-icons/react';
 import type { BillingState } from '@longrak/shared/api-types';
 import { useToast } from '@longrak/shared/components/Toast';
 import { INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
@@ -180,13 +180,24 @@ export default function MembershipPage() {
                       เปลี่ยนเป็นแพ็กเกจนี้
                     </button>
                   ) : (
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => go('/api/billing/checkout', { planId: p.id, code: discount ? discount.code : undefined }, p.id)}
-                      disabled={!!busy || !state.payments}
-                    >
-                      {busy === p.id ? 'กำลังไปหน้าชำระเงิน…' : `สมัคร ${p.name}`}
-                    </button>
+                    <>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => go('/api/billing/checkout', { planId: p.id, code: discount ? discount.code : undefined }, p.id)}
+                        disabled={!!busy || !state.payments}
+                      >
+                        {busy === p.id ? 'กำลังไปหน้าชำระเงิน…' : `สมัคร ${p.name}`}
+                      </button>
+                      {state.payments && (
+                        <Link
+                          className="btn btn-ghost"
+                          href={`/membership/promptpay?plan=${encodeURIComponent(p.id)}${discount ? `&code=${encodeURIComponent(discount.code)}` : ''}`}
+                        >
+                          <QrCode size={18} aria-hidden />
+                          จ่ายด้วย QR PromptPay
+                        </Link>
+                      )}
+                    </>
                   )}
                 </div>
               </li>
@@ -233,7 +244,8 @@ export default function MembershipPage() {
         </section>
 
         <p className="help membership-help">
-          แพ็กเกจแบบชำระเงินต่ออายุอัตโนมัติด้วยบัตรเครดิต/เดบิตจนกว่าจะยกเลิก ชำระผ่าน Stripe เราไม่เก็บเลขบัตรของคุณ อ่าน{' '}
+          สมัครด้วยบัตรเครดิต/เดบิตจะต่ออายุอัตโนมัติจนกว่าจะยกเลิก จ่ายด้วย QR PromptPay ได้ทีละรอบ (30 วันหรือ 365 วัน) ไม่ต่ออายุเอง
+          ชำระผ่าน Stripe เราไม่เก็บเลขบัตรของคุณ อ่าน{' '}
           <Link href="/terms">ข้อกำหนดการใช้งาน</Link>
         </p>
       </main>

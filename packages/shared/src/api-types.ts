@@ -6,7 +6,7 @@ import type { Plan } from './plans';
 
 export type Subscription = {
   planId: string;
-  source: 'stripe' | 'code' | 'admin';
+  source: 'stripe' | 'code' | 'admin' | 'promptpay';
   status: string;
   currentPeriodEnd: number;
   cancelAtPeriodEnd: boolean;

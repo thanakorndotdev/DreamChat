@@ -98,7 +98,7 @@ export default function UsersPanel({ toast }: Props) {
                 </td>
                 <td data-label="แพ็กเกจ">
                   {u.plan ? (
-                    <span title={u.plan.source === 'stripe' ? 'ชำระผ่าน Stripe' : u.plan.source === 'code' ? 'ใช้โค้ด' : 'แอดมินให้'}>
+                    <span title={u.plan.source === 'stripe' ? 'ชำระผ่าน Stripe' : u.plan.source === 'promptpay' ? 'จ่าย PromptPay' : u.plan.source === 'code' ? 'ใช้โค้ด' : 'แอดมินให้'}>
                       {u.plan.name} ถึง {formatDate(u.plan.until)}
                     </span>
                   ) : (
@@ -257,7 +257,7 @@ function UserModal({ user, plans, onClose, onSaved }: { user: AdminUser | null; 
             <legend className="field-label">แพ็กเกจ</legend>
             <p className="help">
               {user.plan
-                ? `ตอนนี้ ${user.plan.name} ถึง ${formatDate(user.plan.until)} (${user.plan.source === 'stripe' ? 'ชำระผ่าน Stripe' : user.plan.source === 'code' ? 'ใช้โค้ด' : 'แอดมินให้'})`
+                ? `ตอนนี้ ${user.plan.name} ถึง ${formatDate(user.plan.until)} (${user.plan.source === 'stripe' ? 'ชำระผ่าน Stripe' : user.plan.source === 'promptpay' ? 'จ่าย PromptPay' : user.plan.source === 'code' ? 'ใช้โค้ด' : 'แอดมินให้'})`
                 : 'ตอนนี้ใช้ Free'}
             </p>
             <div className="grid-2">
