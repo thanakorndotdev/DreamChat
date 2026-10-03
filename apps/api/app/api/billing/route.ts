@@ -17,7 +17,7 @@ export async function GET() {
       plans,
       plan: free,
       subscription: null,
-      usage: { chat: 0 },
+      usage: { chat: 0, image: 0 },
       tokens: { balance: 0, checkedInToday: false },
       economy,
       payments: stripeConfigured(),
@@ -25,11 +25,12 @@ export async function GET() {
     } satisfies BillingState);
   }
   const sub = await getSubscription(user.id);
+  const used = await usageToday(user.id);
   const state: BillingState = {
     plans,
     plan: await effectivePlan(user.id),
     subscription: sub ? { ...sub, live: isLive(sub) } : null,
-    usage: { chat: (await usageToday(user.id)).chat },
+    usage: { chat: used.chat, image: used.image },
     tokens: { balance: await balanceOf(user.id), checkedInToday: await checkedInToday(user.id) },
     economy,
     payments: stripeConfigured(),

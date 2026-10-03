@@ -1,4 +1,5 @@
 import { requireAdmin } from '@/lib/auth';
+import { comfyStatus } from '@/lib/comfyui';
 import { resolveHost } from '@/lib/host';
 import type { AdminSettings } from '@longrak/shared/api-types';
 import { SETTING_KEYS, type SettingKey, getSetting, setSetting } from '@/lib/settings';
@@ -37,6 +38,7 @@ async function snapshot(): Promise<AdminSettings> {
       webhook: !!process.env.STRIPE_WEBHOOK_SECRET?.trim(),
       appUrl: process.env.APP_URL?.trim() ?? '',
     },
+    images: await comfyStatus(),
   };
 }
 

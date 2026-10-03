@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, '../..'),
   transpilePackages: ['@longrak/shared', '@longrak/db'],
   poweredByHeader: false,
+  experimental: {
+    // /api/* is proxied to the backend (proxy.ts). The default 30 s cuts off a picture waiting in the GPU queue
+    // (lib/comfyui.ts allows 180 s) and an Ollama reply on a cold model load (45 s to the first byte).
+    proxyTimeout: 200_000,
+  },
   async headers() {
     return [{ source: '/:path*', headers: SECURITY_HEADERS }];
   },

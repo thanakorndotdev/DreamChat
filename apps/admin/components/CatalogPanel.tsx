@@ -5,7 +5,7 @@ import { ArrowLeft, Plus, Trash } from '@phosphor-icons/react';
 import { type CatalogEntry, type CatalogStatus, type CharacterSheet, STATUS_LABEL } from '@longrak/shared/catalog';
 import { fileToAvatar } from '@longrak/shared/image';
 import { TIER_LABEL } from '@longrak/shared/plans';
-import { adminFetch, errorText, formatDate } from './api';
+import { adminFetch, errorText, formatDate, imageSrc } from './api';
 
 type Filter = 'all' | CatalogStatus;
 
@@ -84,7 +84,7 @@ export default function CatalogPanel({ toast }: { toast: (text: string) => void 
           {shown.map((e) => (
             <li key={e.id}>
               <button onClick={() => setOpen(e)}>
-                {e.sheet.avatar ? <img src={e.sheet.avatar} alt="" loading="lazy" /> : <span className="admin-noimg" />}
+                {e.sheet.avatar ? <img src={imageSrc(e.sheet.avatar)} alt="" loading="lazy" /> : <span className="admin-noimg" />}
                 <span className="admin-char-text">
                   <span className="admin-char-name">
                     {e.sheet.name || '(ไม่มีชื่อ)'}
@@ -179,7 +179,7 @@ function CatalogEditor({ entry, toast, onClose }: { entry: CatalogEntry | null; 
 
       <div className="editor-info">
         <div className="editor-cover">
-          {sheet.avatar ? <img className="book" src={sheet.avatar} alt="" /> : <span className="admin-noimg book" />}
+          {sheet.avatar ? <img className="book" src={imageSrc(sheet.avatar)} alt="" /> : <span className="admin-noimg book" />}
           <label className="btn btn-soft">
             {sheet.avatar ? 'เปลี่ยนรูปปก' : 'ใส่รูปปก'}
             <input

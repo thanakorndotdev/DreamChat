@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowDown, ArrowRight, BookOpen, ChatCircleDots, Check, Crown, Heart, LockSimple, MagicWand, Plus, Sparkle, UserCircle } from '@phosphor-icons/react';
+import { useRouter } from 'next/navigation';
+import { ArrowDown, ArrowRight, BookOpen, ChatCircleDots, Check, ClockCounterClockwise, Crown, Heart, LockSimple, MagicWand, Plus, SignOut, Sparkle, UserCircle } from '@phosphor-icons/react';
 import Copyright from '@longrak/shared/components/Copyright';
-import { formatPrice, INTERVAL_LABEL, TIER_LABEL, type Plan } from '@longrak/shared/plans';
+import { formatPrice, IMAGE_QUALITY_LABEL, INTERVAL_LABEL, TIER_LABEL, type Plan } from '@longrak/shared/plans';
 import type { CatalogEntry } from '@longrak/shared/catalog';
 import styles from './LandingPage.module.css';
+import UserMenu from './UserMenu';
 
 const features = [
   { icon: ChatCircleDots, number: '01', title: 'จากคนอ่าน เป็นคนในเรื่อง', text: 'เลือกตัวละครที่ถูกใจ แล้วพิมพ์สิ่งที่อยากพูด ทุกคำตอบของคุณช่วยพาเรื่องราวไปในทิศทางใหม่' },
@@ -22,7 +24,7 @@ const questions = [
 ];
 
 function planDetails(plan: Plan) {
-  const { dailyMessages, freePerCharacter, checkinTokens, maxCharacters, historyWindow, memoryNotes } = plan.features;
+  const { dailyMessages, freePerCharacter, checkinTokens, maxCharacters, historyWindow, memoryNotes, dailyImages, imageQuality } = plan.features;
   return [
     dailyMessages ? `คุยฟรี ${dailyMessages.toLocaleString('th-TH')} ข้อความต่อวัน` : 'ไม่จำกัดจำนวนข้อความต่อวัน',
     ...(freePerCharacter ? [`ฟรี ${freePerCharacter} ข้อความต่อตัวละคร จากนั้นใช้โทเคน`] : []),
@@ -30,6 +32,7 @@ function planDetails(plan: Plan) {
     maxCharacters ? `เก็บเรื่องราวได้ ${maxCharacters} เรื่อง` : 'เก็บเรื่องราวได้ไม่จำกัด',
     `จำบทสนทนาล่าสุด ${historyWindow} ข้อความ`,
     memoryNotes ? `บันทึกความทรงจำ ${memoryNotes} บันทึก` : 'ความจำจากบทสนทนาล่าสุด',
+    ...(dailyImages ? [`วาดภาพตัวละคร ${dailyImages.toLocaleString('th-TH')} รูปต่อวัน (${IMAGE_QUALITY_LABEL[imageQuality ?? 'standard']})`] : []),
   ];
 }
 
@@ -53,6 +56,11 @@ type Props = {
 export default function LandingPage({ plans, payments, username, characters }: Props) {
   const available = plans?.filter((plan) => plan.active).sort((a, b) => a.level - b.level || a.price - b.price);
   const free = available?.find((plan) => plan.price === 0);
+  const router = useRouter();
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    router.refresh();
+  };
 
   return (
     <div className={styles.landing}>
@@ -66,9 +74,26 @@ export default function LandingPage({ plans, payments, username, characters }: P
           <nav className={styles.navLinks} aria-label="เมนูหลัก">
             {characters.length > 0 && <a href="#characters">ตัวละคร</a>}<a href="#about">ทำความรู้จัก</a><a href="#how-it-works">วิธีเริ่มต้น</a><a href="#pricing">แพ็กเกจ</a>
           </nav>
-          {username
-            ? <Link className={styles.navCta} href="/chat" title="ไปหน้าแชท"><UserCircle size={19} aria-hidden /><span className={styles.navUser}>{username}</span><ArrowRight size={17} aria-hidden /></Link>
-            : <Link className={styles.navCta} href="/chat?login=1">เข้าสู่ระบบ <ArrowRight size={17} aria-hidden /></Link>}
+          <div className={styles.navActions}>
+            {username ? (
+              <UserMenu
+                label={`บัญชี ${username}`}
+                className={styles.navCta}
+                items={[
+                  { label: 'ไปหน้าแชท', icon: <ChatCircleDots size={18} aria-hidden />, href: '/chat' },
+                  { label: 'ประวัติแชท', icon: <ClockCounterClockwise size={18} aria-hidden />, href: '/chat?history=1' },
+                  { label: 'ออกจากระบบ', icon: <SignOut size={18} aria-hidden />, danger: true, onSelect: logout },
+                ]}
+              >
+                <UserCircle size={19} aria-hidden /><span className={styles.navUser}>{username}</span>
+              </UserMenu>
+            ) : (
+              <>
+                <Link className={styles.navHistory} href="/chat?history=1" title="ประวัติแชท" aria-label="ประวัติแชท"><ClockCounterClockwise size={19} aria-hidden /><span className={styles.navHistoryText}>ประวัติแชท</span></Link>
+                <Link className={styles.navCta} href="/chat?login=1">เข้าสู่ระบบ <ArrowRight size={17} aria-hidden /></Link>
+              </>
+            )}
+          </div>
         </div>
       </header>
 

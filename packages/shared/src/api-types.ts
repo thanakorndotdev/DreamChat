@@ -34,7 +34,7 @@ export type BillingState = {
   plan: Plan;
   subscription: (Subscription & { live: boolean }) | null;
   /** Free replies used today. */
-  usage: { chat: number };
+  usage: { chat: number; image: number };
   tokens: { balance: number; checkedInToday: boolean };
   economy: Economy;
   payments: boolean;
@@ -97,6 +97,8 @@ export type AdminSettings = {
   active: { backend: 'ollama' | 'workers-ai' | null; model: string | null; fallback: string | null };
   env: { cf_account_id: string; cf_model: string; cf_fallback_model: string; default_model: string };
   stripe: { secretKey: 'live' | 'test' | null; webhook: boolean; appUrl: string };
+  /** Character pictures (ComfyUI + Flux.1); set in env only. */
+  images: { url: boolean; online: boolean; checkpoints: { schnell: string; dev: string | null } };
 };
 
 export type Throttle = { key: string; count: number; limit: number; until: number; blocked: boolean };
@@ -120,6 +122,9 @@ export type AdminEvidenceDetail = AdminEvidence & { chat: AdminChat };
 /** One Bangkok day on the admin's overview; money in satang. */
 export type StatsDay = { day: string; signups: number; activeChatters: number; messages: number; revenue: number };
 
+/** One Bangkok month on the admin's overview; money in satang, refunds as a positive amount. */
+export type StatsMonth = { month: string; membership: number; tokens: number; refunds: number; net: number; payers: number; newPayers: number; signups: number };
+
 /** The admin's overview: marketing and money figures, all aggregated (no one's personal data). */
 export type AdminStats = {
   generatedAt: number;
@@ -142,7 +147,16 @@ export type AdminStats = {
   messagesPerChatter30: number;
   characters: { own: number; fromCatalog: number; catalogPublished: number; catalogPending: number };
   topCatalog: { id: string; name: string; chats: number; messages: number; unlocks: number }[];
-  coupons: { code: string; redemptions: number }[];
+  /** Redeemed, and how many of those people paid money afterwards. */
+  coupons: { code: string; redemptions: number; paid: number }[];
+  /** People who signed up in the last 30 days, by how far they got. */
+  funnel: { signedUp: number; consented: number; chatted: number; returned: number; paid: number };
+  /** Weekly sign-up cohorts (week starting Monday); a rate is null until the whole cohort could have reached it. */
+  cohorts: { week: string; size: number; d1: number | null; d7: number | null; d30: number | null }[];
+  /** The last 13 weeks by weekday, Monday first. */
+  weekdays: { label: string; messages: number; chatters: number; signups: number }[];
+  /** The last 12 Bangkok months, oldest first; money in satang. */
+  months: StatsMonth[];
   money: {
     revenue30: number;
     revenuePrev30: number;
@@ -153,6 +167,13 @@ export type AdminStats = {
     mrr: number;
     payingMembers: number;
     pendingPromptPay: number;
+    /** Different people who paid in the last 30 days, and those paying for the first time. */
+    payers30: number;
+    newPayers30: number;
+    /** Paid memberships that ended in the last 30 days without renewing. */
+    lapsed30: number;
+    /** Live paid memberships set not to renew. */
+    cancelling: number;
   };
   tokens: { outstanding: number; bought30: number; checkin30: number; spentMessages30: number; spentUnlocks30: number; admin30: number };
   days: StatsDay[];

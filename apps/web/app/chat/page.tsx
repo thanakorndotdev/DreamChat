@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AccountModal from '@/components/AccountModal';
 import AuthScreen from '@/components/AuthScreen';
+import ChatHistory from '@/components/ChatHistory';
 import ChatRoom from '@/components/ChatRoom';
 import ConsentScreen from '@/components/ConsentScreen';
 import CreateWizard from '@/components/CreateWizard';
@@ -23,8 +24,9 @@ export default function ChatPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  /** Sign-in asked for by an action (starting a chat, creating a character); `start` resumes it afterwards. */
-  const [loginFor, setLoginFor] = useState<{ reason: string; start?: string } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  /** Sign-in asked for by an action (starting a chat, creating a character, the history); it resumes afterwards. */
+  const [loginFor, setLoginFor] = useState<{ reason: string; start?: string; history?: boolean } | null>(null);
   const [pendingStart, setPendingStart] = useState<string | null>(null);
 
   const active = characters.find((c) => c.id === activeId);
@@ -32,7 +34,8 @@ export default function ChatPage() {
   const full = !!maxCharacters && characters.length >= maxCharacters;
   const fullMessage = () => `แพ็กเกจ ${billing?.plan.name ?? ''} มีเรื่องได้ ${maxCharacters} เรื่อง ลบเรื่องเก่าหรืออัปเกรดเพื่อเพิ่ม`;
 
-  // Links from the landing page: ?login=1 asks to sign in, ?start=<catalog id> opens that character, ?create=1 the wizard.
+  // Links from the landing page: ?login=1 asks to sign in, ?start=<catalog id> opens that character, ?create=1 the wizard,
+  // ?history=1 the list of chats.
   useEffect(() => {
     if (!auth.me) return;
     const params = new URLSearchParams(window.location.search);
@@ -48,6 +51,10 @@ export default function ChatPage() {
       if (!signedIn) setLoginFor({ reason: 'เข้าสู่ระบบหรือสมัครก่อนสร้างตัวละคร' });
       else if (full) toast(fullMessage());
       else setWizardOpen(true);
+    } else if (params.get('history') === '1') {
+      window.history.replaceState(null, '', '/chat');
+      if (signedIn) setHistoryOpen(true);
+      else setLoginFor({ reason: 'เข้าสู่ระบบเพื่อดูประวัติแชทของคุณ', history: true });
     } else if (!signedIn && params.get('login') === '1') {
       setLoginFor({ reason: 'เข้าสู่ระบบหรือสมัครเพื่อเริ่มเขียนเรื่องของคุณ' });
     }
@@ -80,7 +87,7 @@ export default function ChatPage() {
         onLogout={auth.logout}
       />;
   }
-  const askLogin = (reason: string, start?: string) => setLoginFor({ reason, start });
+  const askLogin = (reason: string, start?: string, history?: boolean) => setLoginFor({ reason, start, history });
 
   const open = (id: string) => {
     update(id, (c) => ({ ...c, updatedAt: Date.now() }));
@@ -165,6 +172,11 @@ export default function ChatPage() {
           }}
           onCreate={() => (!signedIn ? askLogin('เข้าสู่ระบบหรือสมัครก่อนสร้างตัวละคร') : full ? toast(fullMessage()) : setWizardOpen(true))}
           onAccount={() => setAccountOpen(true)}
+          onLogout={() => {
+            setActiveId(null);
+            auth.logout();
+          }}
+          onHistory={() => (signedIn ? setHistoryOpen(true) : askLogin('เข้าสู่ระบบเพื่อดูประวัติแชทของคุณ', undefined, true))}
           legacyCount={legacy?.length ?? 0}
           onImportLegacy={() => {
             if (maxCharacters && characters.length + (legacy?.length ?? 0) > maxCharacters) return toast(fullMessage());
@@ -185,6 +197,7 @@ export default function ChatPage() {
           onSubmit={async (mode, form) => {
             await auth.submit(mode, form);
             if (loginFor.start) setPendingStart(loginFor.start);
+            if (loginFor.history) setHistoryOpen(true);
             setLoginFor(null);
           }}
         />
@@ -207,6 +220,17 @@ export default function ChatPage() {
           }}
         />
       )}
+      {historyOpen && signedIn && (
+        <ChatHistory
+          characters={characters}
+          ready={ready}
+          onClose={() => setHistoryOpen(false)}
+          onOpen={(id) => {
+            setHistoryOpen(false);
+            open(id);
+          }}
+        />
+      )}
       {reportOpen && (
         <ReportBug
           where={active ? `ห้องแชท ${active.name}` : 'หน้าแรก'}
@@ -214,7 +238,17 @@ export default function ChatPage() {
           onSent={() => toast('ส่งรายงานแล้ว ขอบคุณที่ช่วยบอก ทีมงานจะตอบในแท็บ "ที่เคยแจ้ง"')}
         />
       )}
-      {wizardOpen && <CreateWizard host={ollama.host} model={ollama.model} onClose={() => setWizardOpen(false)} onCreate={create} userAdult={!!auth.me.adult} />}
+      {wizardOpen && (
+        <CreateWizard
+          host={ollama.host}
+          model={ollama.model}
+          onClose={() => setWizardOpen(false)}
+          onCreate={create}
+          userAdult={!!auth.me.adult}
+          images={billing && !billing.guest ? { perDay: billing.plan.features.dailyImages ?? 0, used: billing.usage.image ?? 0, quality: billing.plan.features.imageQuality ?? 'standard' } : null}
+          onImageDrawn={refreshBilling}
+        />
+      )}
       <Toast />
     </>
   );

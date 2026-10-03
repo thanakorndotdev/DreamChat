@@ -75,38 +75,35 @@ export function today() {
 
 export async function usageToday(userId: number) {
   const sql = await db();
-  const [r] = await sql<{ chat: number; other: number }[]>`SELECT chat, other FROM usage WHERE user_id = ${userId} AND day = ${today()}`;
-  return r ?? { chat: 0, other: 0 };
+  const [r] = await sql<{ chat: number; other: number; image: number }[]>`SELECT chat, other, image FROM usage WHERE user_id = ${userId} AND day = ${today()}`;
+  return r ?? { chat: 0, other: 0, image: 0 };
 }
+
+export type UsageKind = 'chat' | 'other' | 'image';
 
 /**
  * Takes one unit of today's allowance before the AI call, in a single statement, so parallel
  * requests can't all pass the check and overshoot the limit. `limit` 0 means unlimited.
  * Returns false when the allowance is used up.
  */
-export async function reserveUsage(userId: number, kind: 'chat' | 'other', limit: number): Promise<boolean> {
+export async function reserveUsage(userId: number, kind: UsageKind, limit: number): Promise<boolean> {
   const sql = await db();
   const day = today();
-  const rows =
-    kind === 'chat'
-      ? await sql`
-          INSERT INTO usage (user_id, day, chat) VALUES (${userId}, ${day}, 1)
-          ON CONFLICT (user_id, day) DO UPDATE SET chat = usage.chat + 1
-          WHERE ${limit} = 0 OR usage.chat < ${limit}
-          RETURNING chat`
-      : await sql`
-          INSERT INTO usage (user_id, day, other) VALUES (${userId}, ${day}, 1)
-          ON CONFLICT (user_id, day) DO UPDATE SET other = usage.other + 1
-          WHERE ${limit} = 0 OR usage.other < ${limit}
-          RETURNING other`;
+  // The column name comes from the closed UsageKind union, never from the request.
+  const rows = await sql.unsafe(
+    `INSERT INTO usage (user_id, day, ${kind}) VALUES ($1, $2, 1)
+    ON CONFLICT (user_id, day) DO UPDATE SET ${kind} = usage.${kind} + 1
+    WHERE $3 = 0 OR usage.${kind} < $3
+    RETURNING ${kind}`,
+    [userId, day, limit],
+  );
   return rows.length > 0;
 }
 
 /** Gives the unit back when the AI call failed, so errors don't eat the allowance. */
-export async function releaseUsage(userId: number, kind: 'chat' | 'other') {
+export async function releaseUsage(userId: number, kind: UsageKind) {
   const sql = await db();
-  if (kind === 'chat') await sql`UPDATE usage SET chat = greatest(chat - 1, 0) WHERE user_id = ${userId} AND day = ${today()}`;
-  else await sql`UPDATE usage SET other = greatest(other - 1, 0) WHERE user_id = ${userId} AND day = ${today()}`;
+  await sql.unsafe(`UPDATE usage SET ${kind} = greatest(${kind} - 1, 0) WHERE user_id = $1 AND day = $2`, [userId, today()]);
 }
 
 /** The account's Stripe customer, created on first checkout. */

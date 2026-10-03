@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, CalendarCheck, Check, Coins, Crown, QrCode } from '@phosphor-icons/react';
 import type { BillingState } from '@longrak/shared/api-types';
 import { useToast } from '@longrak/shared/components/Toast';
-import { FREE_PLAN_ID, INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
+import { FREE_PLAN_ID, IMAGE_QUALITY_LABEL, INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
 import { formatTokens } from '@longrak/shared/tokens';
 import AuthScreen from '@/components/AuthScreen';
 import ConsentScreen from '@/components/ConsentScreen';
@@ -23,6 +23,7 @@ function limits(p: Plan) {
     `AI จำ ${f.historyWindow} ข้อความล่าสุด`,
     f.memoryNotes ? `ความจำระยะยาว ${f.memoryNotes} บันทึก` : 'ไม่มีความจำระยะยาว',
     f.maxCharacters ? `มีเรื่องได้ ${f.maxCharacters} เรื่อง` : 'มีเรื่องได้ไม่จำกัด',
+    f.dailyImages ? `วาดภาพตัวละคร ${f.dailyImages.toLocaleString('th-TH')} รูป/วัน คุณภาพ${IMAGE_QUALITY_LABEL[f.imageQuality ?? 'standard']}` : 'ไม่มีวาดภาพด้วย AI',
   ];
 }
 

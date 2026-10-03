@@ -14,3 +14,9 @@ export const errorText = (err: unknown) => (err instanceof Error ? err.message :
 export function formatDate(ts: number) {
   return new Date(ts).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+
+/** The public site, for the back arrow; optional. */
+export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://longrakchat.com';
+
+/** The ready-made characters' pictures are files on the public site (/characters/…), not on the console. */
+export const imageSrc = (src: string) => (src.startsWith('/') && WEB_URL ? `${WEB_URL.replace(/\/$/, '')}${src}` : src);

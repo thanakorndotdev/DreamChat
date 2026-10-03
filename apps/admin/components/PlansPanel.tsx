@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus } from '@phosphor-icons/react';
 import Modal from '@longrak/shared/components/Modal';
-import { FREE_PLAN_ID, INTERVAL_LABEL, type Plan, formatPrice } from '@longrak/shared/plans';
+import { FREE_PLAN_ID, IMAGE_QUALITY_LABEL, INTERVAL_LABEL, type ImageQuality, type Plan, formatPrice } from '@longrak/shared/plans';
 import { adminFetch, errorText } from './api';
 
 type AdminPlan = Plan & { members: number };
@@ -48,6 +48,7 @@ export default function PlansPanel({ toast }: { toast: (text: string) => void })
               <th>เช็คอิน</th>
               <th>ความจำ</th>
               <th>เรื่องสูงสุด</th>
+              <th>วาดภาพ</th>
               <th>สมาชิก</th>
               <th>สถานะ</th>
               <th aria-label="จัดการ" />
@@ -67,6 +68,7 @@ export default function PlansPanel({ toast }: { toast: (text: string) => void })
                   {p.features.historyWindow} ข้อความ, {p.features.memoryNotes} บันทึก
                 </td>
                 <td data-label="เรื่องสูงสุด">{p.features.maxCharacters || 'ไม่จำกัด'}</td>
+                <td data-label="วาดภาพ">{p.features.dailyImages ? `${p.features.dailyImages} รูป/วัน, ${IMAGE_QUALITY_LABEL[p.features.imageQuality ?? 'standard']}` : '—'}</td>
                 <td data-label="สมาชิก">{p.id === FREE_PLAN_ID ? '—' : p.members}</td>
                 <td data-label="สถานะ">{p.active ? 'เปิดขาย' : 'ปิดขาย'}</td>
                 <td className="admin-actions">
@@ -117,7 +119,8 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan; onClose: () =>
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const num = (key: 'dailyMessages' | 'freePerCharacter' | 'checkinTokens' | 'historyWindow' | 'memoryNotes' | 'maxCharacters', v: string) => setF((x) => ({ ...x, [key]: Number(v) || 0 }));
+  const num = (key: 'dailyMessages' | 'freePerCharacter' | 'checkinTokens' | 'historyWindow' | 'memoryNotes' | 'maxCharacters' | 'dailyImages', v: string) =>
+    setF((x) => ({ ...x, [key]: Number(v) || 0 }));
 
   const save = async () => {
     setBusy(true);
@@ -209,6 +212,22 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan; onClose: () =>
             <span className="field-label">ความจำระยะยาว (บันทึกเรื่อง)</span>
             <input type="number" min={0} value={f.memoryNotes} onChange={(e) => num('memoryNotes', e.target.value)} />
             <span className="help">0 = ปิดการจดบันทึก</span>
+          </label>
+          <label className="field">
+            <span className="field-label">วาดภาพตัวละครต่อวัน</span>
+            <input type="number" min={0} value={f.dailyImages ?? 0} onChange={(e) => num('dailyImages', e.target.value)} />
+            <span className="help">ComfyUI + Flux บน GPU ของเรา 0 = วาดไม่ได้</span>
+          </label>
+          <label className="field">
+            <span className="field-label">คุณภาพภาพ</span>
+            <select value={f.imageQuality ?? 'standard'} onChange={(e) => setF((x) => ({ ...x, imageQuality: e.target.value as ImageQuality }))}>
+              {(Object.keys(IMAGE_QUALITY_LABEL) as ImageQuality[]).map((q) => (
+                <option key={q} value={q}>
+                  {IMAGE_QUALITY_LABEL[q]}
+                </option>
+              ))}
+            </select>
+            <span className="help">มาตรฐาน 576×768 · HD 768×1024 · พรีเมียม 896×1184 (ใช้ Flux dev ถ้าตั้งไว้)</span>
           </label>
         </div>
         <label className="field">

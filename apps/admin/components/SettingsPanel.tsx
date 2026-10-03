@@ -180,6 +180,35 @@ export default function SettingsPanel({ toast }: { toast: (text: string) => void
           </dd>
         </div>
       </dl>
+
+      <div className="admin-head">
+        <div>
+          <h2 className="section-title">วาดภาพตัวละคร (ComfyUI + Flux.1)</h2>
+          <p className="admin-summary">ตั้งใน env ของเซิร์ฟเวอร์แล้ว restart จำนวนรูปต่อวันและคุณภาพตั้งแยกตามแพ็กเกจในแท็บแพ็กเกจ</p>
+        </div>
+      </div>
+      <dl className="settings-form stripe-status">
+        <div>
+          <dt>COMFYUI_URL</dt>
+          <dd data-ok={settings.images.online || undefined}>
+            {!settings.images.url ? 'ยังไม่ได้ตั้ง ผู้ใช้จะวาดภาพด้วย AI ไม่ได้' : settings.images.online ? 'ตั้งแล้ว เชื่อมต่อได้' : 'ตั้งแล้ว แต่ติดต่อเซิร์ฟเวอร์ ComfyUI ไม่ได้'}
+          </dd>
+        </div>
+        <div>
+          <dt>COMFYUI_FLUX_CHECKPOINT</dt>
+          <dd>
+            <code>{settings.images.checkpoints.schnell}</code>
+            <span className="help">Flux.1 [schnell] แบบรวมไฟล์เดียว วางใน ComfyUI/models/checkpoints ใช้กับทุกคุณภาพ</span>
+          </dd>
+        </div>
+        <div>
+          <dt>COMFYUI_FLUX_DEV_CHECKPOINT</dt>
+          <dd>
+            {settings.images.checkpoints.dev ? <code>{settings.images.checkpoints.dev}</code> : 'ไม่ได้ตั้ง คุณภาพพรีเมียมใช้ schnell ที่ขนาดใหญ่ขึ้น'}
+            <span className="help">ไม่บังคับ ภาพละเอียดกว่าแต่ช้ากว่า ใช้ในบริการที่เก็บเงินได้ต้องมีไลเซนส์เชิงพาณิชย์จาก Black Forest Labs</span>
+          </dd>
+        </div>
+      </dl>
     </section>
   );
 }

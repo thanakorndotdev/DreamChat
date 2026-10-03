@@ -61,6 +61,9 @@
 .navLinks a:hover, .footer nav a:hover { color: var(--lp-accent); }
 .navCta { display: inline-flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 400; padding: 11px 19px; border: 1px solid var(--lp-border); border-radius: 7px; }
 .navCta:hover { background: var(--lp-hover); }
+.navActions { display: flex; align-items: center; gap: 10px; }
+.navHistory { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; padding: 11px 14px; border-radius: 7px; color: var(--lp-muted); }
+.navHistory:hover { background: var(--lp-hover); color: var(--lp-accent); }
 .navUser { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero { display: grid; grid-template-columns: 1.12fr 1fr; align-items: center; gap: 38px; padding-top: 80px; padding-bottom: 95px; }
 .eyebrow { display: flex; align-items: center; gap: 10px; color: var(--lp-accent); font-size: 15px; font-weight: 400; letter-spacing: .3px; }
@@ -276,6 +279,9 @@
   .brandIcon { width: 32px; height: 32px; border-radius: 10px 10px 10px 3px; }
   .navCta { padding: 8px 12px; font-size: 14px; gap: 8px; }
   .navUser { max-width: 10ch; }
+  .navActions { gap: 4px; }
+  .navHistory { padding: 8px; }
+  .navHistoryText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .navLinks { order: 3; width: 100%; justify-content: center; gap: 30px; padding: 12px 0 14px; font-size: 14px; }
   .hero { grid-template-columns: 1fr; gap: 36px; padding-block: 43px 38px; }
   .heroCopy { text-align: center; }
@@ -328,6 +334,7 @@
   .footer { gap: 23px; padding-top: 34px; }
   .footer nav { gap: 20px; }
 }
+@media (max-width: 420px) { .navCta .navUser { display: none; } .navCta { gap: 4px; } }
 @media (prefers-reduced-motion: reduce) { .landing *, .landing *::before, .landing *::after { transition: none; } .characterCard:hover, .characterCard:hover .characterPhoto img { transform: none; } }
 
 /* Headings and character names in the display face. Last in the file so it wins over the tighter tracking above, which suits Mitr but crowds Chonburi's Thai marks. */

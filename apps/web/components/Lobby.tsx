@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BookOpen, Bug, CalendarCheck, ChatCircle, Coins, Crown, LockSimple, MagnifyingGlass, Megaphone, Plus, Trash, UserCircle } from '@phosphor-icons/react';
+import { BookOpen, Bug, CalendarCheck, ChatCircle, ClockCounterClockwise, Coins, Crown, LockSimple, MagnifyingGlass, Megaphone, Plus, SignOut, Trash, UserCircle } from '@phosphor-icons/react';
 import Link from 'next/link';
 import RoleplayText from './RoleplayText';
 import { STATUS_LABEL } from '@longrak/shared/catalog';
@@ -10,6 +10,8 @@ import { formatTokens } from '@longrak/shared/tokens';
 import type { CatalogCard, Submission } from '@/lib/store';
 import type { Character } from '@longrak/shared/types';
 import SiteFooter from './SiteFooter';
+import UserMenu from './UserMenu';
+import { ago, lastLine, lineCount } from '@/lib/chats';
 
 type Props = {
   characters: Character[];
@@ -33,6 +35,9 @@ type Props = {
   onDelete: (id: string) => void;
   onCreate: () => void;
   onAccount: () => void;
+  /** Opens the list of every chat, newest first. */
+  onHistory: () => void;
+  onLogout: () => void;
   /** Old chats found in this browser from before accounts. */
   legacyCount: number;
   onImportLegacy: () => void;
@@ -53,28 +58,6 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: 'longest', label: 'คุยยาวที่สุด' },
   { id: 'name', label: 'ชื่อ ก–ฮ' },
 ];
-
-const relative = new Intl.RelativeTimeFormat('th', { numeric: 'auto' });
-
-function ago(ts: number) {
-  const minutes = Math.round((ts - Date.now()) / 60000);
-  if (minutes > -1) return 'เมื่อสักครู่';
-  if (minutes > -60) return relative.format(minutes, 'minute');
-  const hours = Math.round(minutes / 60);
-  if (hours > -24) return relative.format(hours, 'hour');
-  const days = Math.round(hours / 24);
-  if (days > -30) return relative.format(days, 'day');
-  return new Date(ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
-}
-
-function lastLine(c: Character) {
-  const visible = c.messages.filter((m) => !m.failed);
-  return visible.length ? visible[visible.length - 1].text : c.firstMessage;
-}
-
-function lineCount(c: Character) {
-  return c.messages.filter((m) => !m.failed).length;
-}
 
 /** Each story note closes a stretch of the chat, so the next stretch is the episode being written now. */
 function episode(c: Character) {
@@ -100,6 +83,8 @@ export default function Lobby({
   onDelete,
   onCreate,
   onAccount,
+  onHistory,
+  onLogout,
   legacyCount,
   onImportLegacy,
   onDiscardLegacy,
@@ -167,6 +152,9 @@ export default function Lobby({
                 <Crown size={17} aria-hidden />
                 <span>แพ็กเกจ</span>
               </Link>
+              <button className="icon-btn" onClick={onHistory} aria-label="ประวัติแชท" title="ประวัติแชท">
+                <ClockCounterClockwise size={19} />
+              </button>
               <button className="btn btn-primary" onClick={onLogin}>
                 เข้าสู่ระบบ<span className="wide-only"> / สมัคร</span>
               </button>
@@ -201,10 +189,18 @@ export default function Lobby({
             <Plus size={18} weight="bold" />
             <span>สร้างตัวละคร</span>
           </button>
-          <button className="btn btn-ghost account" onClick={onAccount} aria-label={`บัญชีของฉัน (${username})`} title="บัญชีของฉัน">
+          <UserMenu
+            label={`บัญชีของฉัน (${username})`}
+            className="btn btn-ghost account"
+            items={[
+              { label: 'ประวัติแชท', icon: <ClockCounterClockwise size={18} aria-hidden />, onSelect: onHistory },
+              { label: 'บัญชีของฉัน', icon: <UserCircle size={18} aria-hidden />, onSelect: onAccount },
+              { label: 'ออกจากระบบ', icon: <SignOut size={18} aria-hidden />, danger: true, onSelect: onLogout },
+            ]}
+          >
             <span className="account-name">{username}</span>
             <UserCircle size={18} />
-          </button>
+          </UserMenu>
           </>
           )}
         </div>

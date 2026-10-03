@@ -26,6 +26,8 @@ export async function PUT(req: Request, ctx: RouteContext<'/api/admin/plans/[id]
     historyWindow: int(f.historyWindow, 1, 200),
     memoryNotes: int(f.memoryNotes, 0, 200),
     maxCharacters: int(f.maxCharacters, 0, 10_000),
+    dailyImages: int(f.dailyImages, 0, 10_000),
+    imageQuality: f.imageQuality === 'premium' || f.imageQuality === 'hd' ? f.imageQuality : 'standard',
   };
   const isFree = id === FREE_PLAN_ID;
   const price = isFree ? 0 : int(b.price, 0, 100_000_000);

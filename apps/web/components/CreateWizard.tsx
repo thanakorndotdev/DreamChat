@@ -1,12 +1,13 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, MagicWand, PencilSimple, Shuffle, Sparkle, Stop, Trash, UploadSimple } from '@phosphor-icons/react';
 import Modal from '@longrak/shared/components/Modal';
 import { BOT_PRESETS, DEFAULT_AVATAR, IMAGE_THEMES, USER_PRESETS, pickNew } from '@longrak/shared/presets';
 import { ageNumber } from '@longrak/shared/age';
 import { fileToAvatar } from '@longrak/shared/image';
 import { generateCharacter } from '@/lib/ollama';
+import { IMAGE_QUALITY_LABEL, type ImageQuality } from '@longrak/shared/plans';
 import type { Character } from '@longrak/shared/types';
 
 const STEPS = ['ตัวละคร', 'บทบาทคุณ', 'รูปภาพ'];
@@ -27,9 +28,6 @@ const EMPTY = {
   adult: false,
 };
 
-const STYLE_TAGS =
-  'korean manhwa webtoon style, romance novel cover art, semi-realistic digital painting, delicate porcelain skin, soft glossy lips, sparkling eyes, warm soft ambient lighting, highly detailed, trending on artstation';
-
 async function toEnglish(prompt: string) {
   if (!/[ก-๙]/.test(prompt)) return prompt;
   try {
@@ -48,9 +46,13 @@ type Props = {
   onCreate: (c: Character) => void;
   /** 18+ by the account's birthdate; otherwise the 18+ switch is locked. */
   userAdult: boolean;
+  /** Pictures the plan draws per day, how many are used today, and at what quality; null until billing loads. */
+  images: { perDay: number; used: number; quality: ImageQuality } | null;
+  /** A picture was drawn (or failed after counting), so the count on the page should be refreshed. */
+  onImageDrawn: () => void;
 };
 
-export default function CreateWizard({ host, model, onClose, onCreate, userAdult }: Props) {
+export default function CreateWizard({ host, model, onClose, onCreate, userAdult, images, onImageDrawn }: Props) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,13 @@ export default function CreateWizard({ host, model, onClose, onCreate, userAdult
   const aiAbort = useRef<AbortController | null>(null);
   // Bumped by every image action so a slow earlier one can't overwrite a newer choice.
   const imageJob = useRef(0);
+  const imageAbort = useRef<AbortController | null>(null);
+  /** From the last picture's X-Images-Left; until then, from billing. */
+  const [imagesLeft, setImagesLeft] = useState<number | null>(null);
+  const left = imagesLeft ?? (images ? Math.max(0, images.perDay - images.used) : null);
+  const canDraw = !images || (images.perDay > 0 && left !== 0);
+  // Closing the wizard stops a picture still being drawn, so the GPU and the day's count aren't spent on it.
+  useEffect(() => () => imageAbort.current?.abort(), []);
   const last = useRef<{ bot?: (typeof BOT_PRESETS)[number]; user?: (typeof USER_PRESETS)[number]; theme?: string }>({});
 
   const set = (key: Exclude<keyof typeof EMPTY, 'adult'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -136,27 +145,39 @@ export default function CreateWizard({ host, model, onClose, onCreate, userAdult
       return;
     }
     const job = ++imageJob.current;
+    imageAbort.current?.abort();
+    const controller = (imageAbort.current = new AbortController());
     setImageState({ busy: true, text: 'กำลังแปลคำบรรยาย…' });
     const english = await toEnglish(prompt.trim());
     if (job !== imageJob.current) return;
     setImageState({ busy: true, text: 'กำลังวาดภาพ อาจใช้เวลาสักครู่…' });
-    const seed = Math.floor(Math.random() * 100000);
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(`${english}, ${STYLE_TAGS}`)}?width=600&height=800&nologo=true&seed=${seed}`;
-    const img = new Image();
-    img.onload = () => {
+    try {
+      const res = await fetch('/api/images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: english }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error((await res.text()) || 'วาดภาพไม่สำเร็จ ลองใหม่อีกครั้ง');
+      const leftHeader = res.headers.get('X-Images-Left');
+      if (leftHeader !== null) setImagesLeft(Number(leftHeader));
+      const blob = await res.blob();
+      // Shrunk to a JPEG like an upload, so the character stays small enough to save with the account.
+      const url = await fileToAvatar(new File([blob], 'avatar.png', { type: blob.type || 'image/png' }));
       if (job !== imageJob.current) return;
       setAvatar(url);
       setImageState({ busy: false });
-    };
-    img.onerror = () => {
-      if (job !== imageJob.current) return;
-      setImageState({ busy: false, error: 'โหลดภาพไม่สำเร็จ ลองกดสร้างภาพอีกครั้ง' });
-    };
-    img.src = url;
+    } catch (err) {
+      if (job !== imageJob.current || controller.signal.aborted) return;
+      setImageState({ busy: false, error: err instanceof Error ? err.message : 'วาดภาพไม่สำเร็จ ลองใหม่อีกครั้ง' });
+    } finally {
+      onImageDrawn();
+    }
   };
 
   const removeImage = () => {
     imageJob.current++;
+    imageAbort.current?.abort();
     setAvatar(DEFAULT_AVATAR);
     setImageState({ busy: false });
   };
@@ -375,7 +396,16 @@ export default function CreateWizard({ host, model, onClose, onCreate, userAdult
             {imageState.busy && <div className="image-overlay">{imageState.text}</div>}
           </div>
           <div className="form">
-            <Field label="บรรยายหน้าตา" hint="พิมพ์ไทยได้ ระบบจะแปลและวาดเป็นลายเส้นมังฮวา">
+            <Field
+              label="บรรยายหน้าตา"
+              hint={
+                images
+                  ? images.perDay > 0
+                    ? `พิมพ์ไทยได้ วาดด้วย Flux คุณภาพ${IMAGE_QUALITY_LABEL[images.quality]} วันนี้เหลือ ${left ?? images.perDay}/${images.perDay} รูป`
+                    : 'แพ็กเกจนี้ยังวาดภาพด้วย AI ไม่ได้ อัปโหลดรูปเองหรือวางลิงก์รูปแทนได้'
+                  : 'พิมพ์ไทยได้ ระบบจะแปลแล้ววาดภาพให้'
+              }
+            >
               <textarea
                 rows={3}
                 value={imagePrompt}
@@ -384,13 +414,13 @@ export default function CreateWizard({ host, model, onClose, onCreate, userAdult
               />
             </Field>
             <div className="row">
-              <button type="button" className="btn btn-primary" onClick={() => generateImage()} disabled={imageState.busy}>
+              <button type="button" className="btn btn-primary" onClick={() => generateImage()} disabled={imageState.busy || !canDraw}>
                 <Sparkle size={16} /> สร้างภาพ
               </button>
               <button
                 type="button"
                 className="btn btn-soft"
-                disabled={imageState.busy}
+                disabled={imageState.busy || !canDraw}
                 onClick={() => {
                   const theme = (last.current.theme = pickNew(IMAGE_THEMES, last.current.theme));
                   setImagePrompt(theme);
@@ -421,6 +451,14 @@ export default function CreateWizard({ host, model, onClose, onCreate, userAdult
             {imageState.error && (
               <p className="form-error" role="alert">
                 {imageState.error}
+              </p>
+            )}
+            {images && !canDraw && (
+              <p className="help">
+                <a className="link" href="/membership">
+                  อัปเกรดแพ็กเกจ
+                </a>{' '}
+                เพื่อวาดภาพได้มากขึ้นและคมชัดขึ้น
               </p>
             )}
             <Field label="หรือวางลิงก์รูป">

@@ -14,6 +14,19 @@ export type PlanFeatures = {
   memoryNotes: number;
   /** Own characters an account may keep; 0 = unlimited. */
   maxCharacters: number;
+  /** Character pictures drawn (ComfyUI + Flux) per day; 0 = none. */
+  dailyImages: number;
+  /** How the pictures are drawn; see IMAGE_QUALITY. */
+  imageQuality: ImageQuality;
+};
+
+export type ImageQuality = 'standard' | 'hd' | 'premium';
+
+/** What each picture quality means, for the plan pages and the console. */
+export const IMAGE_QUALITY_LABEL: Record<ImageQuality, string> = {
+  standard: 'มาตรฐาน',
+  hd: 'คมชัดสูง (HD)',
+  premium: 'พรีเมียม ละเอียดที่สุด',
 };
 
 export type Plan = {
@@ -38,7 +51,7 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     level: 0,
     price: 0,
     interval: 'month',
-    features: { dailyMessages: 15, freePerCharacter: 20, checkinTokens: 0, model: '', historyWindow: 8, memoryNotes: 3, maxCharacters: 2 },
+    features: { dailyMessages: 15, freePerCharacter: 20, checkinTokens: 0, model: '', historyWindow: 8, memoryNotes: 3, maxCharacters: 2, dailyImages: 3, imageQuality: 'standard' },
     perks: ['ลองคุยกับตัวละครได้ทุกวัน', 'จำบทสนทนาล่าสุดได้ช่วงสั้นๆ', 'สร้างตัวละครเองได้ 2 ตัว'],
   },
   {
@@ -47,7 +60,7 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     level: 1,
     price: 9_900,
     interval: 'month',
-    features: { dailyMessages: 0, freePerCharacter: 0, checkinTokens: 100, model: '', historyWindow: 16, memoryNotes: 15, maxCharacters: 15 },
+    features: { dailyMessages: 0, freePerCharacter: 0, checkinTokens: 100, model: '', historyWindow: 16, memoryNotes: 15, maxCharacters: 15, dailyImages: 20, imageQuality: 'hd' },
     perks: [
       'คุยได้ไม่จำกัดจำนวนต่อวัน',
       'เช็คอินรับ 100 โทเคนทุกวัน ไว้ปลดล็อกตัวละครที่ชอบ',
@@ -65,7 +78,7 @@ export const DEFAULT_PLANS: Omit<Plan, 'active'>[] = [
     level: 2,
     price: 19_900,
     interval: 'month',
-    features: { dailyMessages: 0, freePerCharacter: 0, checkinTokens: 100, model: '', historyWindow: 30, memoryNotes: 40, maxCharacters: 0 },
+    features: { dailyMessages: 0, freePerCharacter: 0, checkinTokens: 100, model: '', historyWindow: 30, memoryNotes: 40, maxCharacters: 0, dailyImages: 60, imageQuality: 'premium' },
     perks: [
       'คุยได้ไม่จำกัดจำนวนต่อวัน',
       'เช็คอินรับ 100 โทเคนทุกวัน ไว้ปลดล็อกตัวละครที่ชอบ',
